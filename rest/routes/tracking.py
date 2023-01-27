@@ -27,11 +27,10 @@ def get_comment_value(value):
 
 def format_epoch(value): 
   return {
-    'date': value.find('EPOCH').text,
+    'date': datetime.strptime(value.find('EPOCH').text, "%Y-%jT%H:%M:%S.%fZ").strftime("%Y-%m-%dT%H:%M:%S.%f"),
     'location': [float(value.find('X').text), float(value.find('Y').text), float(value.find('Z').text)],
     'velocity': [float(value.find('X_DOT').text), float(value.find('Y_DOT').text), float(value.find('Z_DOT').text)],
   }
-  
 
 @bp.route('')
 def index():
@@ -44,7 +43,7 @@ def index():
 
   current_date = datetime.now(tz=utc)
 
-  for t in datetime_range(current_date, current_date + timedelta(days=4), timedelta(minutes=1)):
+  for t in datetime_range(current_date, current_date + timedelta(days=5), timedelta(minutes=4)):
     geocentric = satellite.at(ts.from_datetime(t))
     
     obj = {
