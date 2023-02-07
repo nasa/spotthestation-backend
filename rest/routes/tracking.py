@@ -3,34 +3,13 @@ import xml.etree.ElementTree as ET
 import gzip
 
 from flask import Blueprint, json, make_response, jsonify
-from skyfield.api import EarthSatellite, load, utc
+from skyfield.api import EarthSatellite, load, utc, wgs84
 from datetime import datetime, timedelta
+from ..services.helpers import (
+  datetime_range, download, get_comment_value, format_epoch, chunks, deg_to_compass
+)
 
 bp = Blueprint('tracking', __name__, url_prefix='/tracking')
-
-def datetime_range(start, end, delta):
-  current = start
-  while current < end:
-      yield current
-      current += delta
-
-def download(url):
-  get_response = requests.get(url,stream=True)
-  file_name  = url.split("/")[-1]
-  with open("log/" + file_name, 'wb') as f:
-    for chunk in get_response.iter_content(chunk_size=1024):
-      if chunk:
-        f.write(chunk)
-
-def get_comment_value(value): 
-  return float(value.split("=")[-1])
-
-def format_epoch(value): 
-  return {
-    'date': datetime.strptime(value.find('EPOCH').text, "%Y-%jT%H:%M:%S.%fZ").strftime("%Y-%m-%dT%H:%M:%S.%f"),
-    'location': [float(value.find('X').text), float(value.find('Y').text), float(value.find('Z').text)],
-    'velocity': [float(value.find('X_DOT').text), float(value.find('Y_DOT').text), float(value.find('Z_DOT').text)],
-  }
 
 @bp.route('')
 def index():
@@ -90,4 +69,38 @@ def getNasaData():
   response.headers['Content-length'] = len(content)
   response.headers['Content-Encoding'] = 'gzip'
   return response
+
+@bp.route('/tle-predict-for-location')
+def getTLEPredict():
+  ts = load.timescale()
+  norad = requests.get("https://celestrak.org/NORAD/elements/gp.php?NAME=ISS%20(ZARYA)&FORMAT=TLE").text.splitlines()
+  iss = EarthSatellite(norad[1], norad[2], norad[0], ts)
+  location = wgs84.latlon(+30.266666, -97.733330)
+  t0 = ts.utc(2023, 2, 6)
+  t1 = ts.utc(2023, 2, 7)
+  (t1.utc_datetime() - t0.utc_datetime()).seconds
+  t, events = iss.find_events(location, t0, t1, 0)
+  
+  res = []
+
+  for event in chunks(list(zip(t, events)), 3):
+    ti0, _ = event[0]
+    ti1, _ = event[1]
+    ti2, _ = event[2]
+
+    maxHeight, _, _ = (iss - location).at(ti1).altaz()
+    _, appears, _ = (iss - location).at(ti0).altaz()
+    _, disappears, _ = (iss - location).at(ti2).altaz()
+
+    item = {
+      'date': ti0.utc_strftime('%a %b %-d, %-H:%M %p'),
+      'maxHeight': maxHeight.degrees,
+      'appears': deg_to_compass(appears.degrees),
+      'disappears': deg_to_compass(disappears.degrees),
+      'visible': round((ti2.utc_datetime() - ti0.utc_datetime()).seconds / 60)
+    }
+
+    res.append(item)
+
+  return jsonify(res)
   
