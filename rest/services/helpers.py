@@ -1,5 +1,8 @@
+import math
 import requests
-from datetime import datetime
+import datetime as dt
+from skyfield import almanac
+from skyfield.api import load
 
 def chunks(lst, n):
   for i in range(0, len(lst), n):
@@ -7,7 +10,7 @@ def chunks(lst, n):
 
 def deg_to_compass(d):
   return ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
-    "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"] [round(((d+(360/16)/2)%360)/(360/16))]
+    "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"] [math.floor(((d+(360/16)/2)%360)/(360/16))]
 
 def datetime_range(start, end, delta):
   current = start
@@ -28,7 +31,25 @@ def get_comment_value(value):
 
 def format_epoch(value): 
   return {
-    'date': datetime.strptime(value.find('EPOCH').text, "%Y-%jT%H:%M:%S.%fZ").strftime("%Y-%m-%dT%H:%M:%S.%f"),
+    'date': dt.strptime(value.find('EPOCH').text, "%Y-%jT%H:%M:%S.%fZ").strftime("%Y-%m-%dT%H:%M:%S.%f"),
     'location': [float(value.find('X').text), float(value.find('Y').text), float(value.find('Z').text)],
     'velocity': [float(value.find('X_DOT').text), float(value.find('Y_DOT').text), float(value.find('Z_DOT').text)],
   }
+
+def calculate_twinlites(bluffton, now, zone):
+  midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+  next_midnight = midnight + dt.timedelta(days=1)
+
+  ts = load.timescale()
+  t0 = ts.from_datetime(midnight)
+  t1 = ts.from_datetime(next_midnight)
+  eph = load('de421.bsp')
+
+  f = almanac.dark_twilight_day(eph, bluffton)
+  times, events = almanac.find_discrete(t0, t1, f)
+
+  res = []
+  for t, _ in zip(times, events):
+    res.append(t.astimezone(zone))
+
+  return res

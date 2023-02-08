@@ -5,8 +5,9 @@ import gzip
 from flask import Blueprint, json, make_response, jsonify
 from skyfield.api import EarthSatellite, load, utc, wgs84
 from datetime import datetime, timedelta
+from pytz import timezone
 from ..services.helpers import (
-  datetime_range, download, get_comment_value, format_epoch, chunks, deg_to_compass
+  datetime_range, download, get_comment_value, format_epoch, chunks, deg_to_compass, calculate_twinlites
 )
 
 bp = Blueprint('tracking', __name__, url_prefix='/tracking')
@@ -71,15 +72,15 @@ def getNasaData():
   return response
 
 @bp.route('/tle-predict-for-location')
-def getTLEPredict():
+def getTLEPredictedSightings():
+  zone = timezone('US/Central')
   ts = load.timescale()
   norad = requests.get("https://celestrak.org/NORAD/elements/gp.php?NAME=ISS%20(ZARYA)&FORMAT=TLE").text.splitlines()
   iss = EarthSatellite(norad[1], norad[2], norad[0], ts)
-  location = wgs84.latlon(+30.266666, -97.733330)
-  t0 = ts.utc(2023, 2, 6)
-  t1 = ts.utc(2023, 2, 7)
-  (t1.utc_datetime() - t0.utc_datetime()).seconds
-  t, events = iss.find_events(location, t0, t1, 0)
+  location = wgs84.latlon(30.266666, -97.733330)
+  t0 = ts.from_datetime(zone.localize(datetime.fromisoformat('2023-02-03')))
+  t1 = ts.from_datetime(zone.localize(datetime.fromisoformat('2023-02-19')))
+  t, events = iss.find_events(location, t0, t1, 10)
   
   res = []
 
@@ -88,19 +89,22 @@ def getTLEPredict():
     ti1, _ = event[1]
     ti2, _ = event[2]
 
-    maxHeight, _, _ = (iss - location).at(ti1).altaz()
-    _, appears, _ = (iss - location).at(ti0).altaz()
-    _, disappears, _ = (iss - location).at(ti2).altaz()
+    twinlites = calculate_twinlites(location, ti1.astimezone(zone), zone)
 
-    item = {
-      'date': ti0.utc_strftime('%a %b %-d, %-H:%M %p'),
-      'maxHeight': maxHeight.degrees,
-      'appears': deg_to_compass(appears.degrees),
-      'disappears': deg_to_compass(disappears.degrees),
-      'visible': round((ti2.utc_datetime() - ti0.utc_datetime()).seconds / 60)
-    }
+    if twinlites[0] < ti1.astimezone(zone) < twinlites[2] or twinlites[4] < ti1.astimezone(zone) < twinlites[7]:
+      maxHeight, _, _ = (iss - location).at(ti1).altaz()
+      appears_altitude, appears_azimut, _ = (iss - location).at(ti0).altaz()
+      disappears_altitude, disappears_azimut, _ = (iss - location).at(ti2).altaz()
 
-    res.append(item)
+      item = {
+        'date': ti0.astimezone(zone).strftime('%a %b %-d, %-I:%M %p'),
+        'maxHeight': round(maxHeight.degrees),
+        'appears': str(round(appears_altitude.degrees)) + " " + deg_to_compass(appears_azimut.degrees),
+        'disappears': str(round(disappears_altitude.degrees)) + " " + deg_to_compass(disappears_azimut.degrees),
+        'visible': round((ti2.astimezone(zone) - ti0.astimezone(zone)).seconds / 60)
+      }
+
+      res.append(item)
 
   return jsonify(res)
-  
+    
