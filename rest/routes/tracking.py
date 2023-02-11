@@ -7,7 +7,7 @@ from skyfield.api import EarthSatellite, load, utc, wgs84
 from datetime import datetime, timedelta
 from pytz import timezone
 from ..services.helpers import (
-  datetime_range, download, get_comment_value, format_epoch, chunks, deg_to_compass, calculate_twinlites
+  datetime_range, download, get_comment_value, format_epoch, chunks, deg_to_compass, calculate_twinlites, GCRF_to_ITRF
 )
 
 bp = Blueprint('tracking', __name__, url_prefix='/tracking')
@@ -48,7 +48,7 @@ def index():
 @bp.route('/nasa')
 def getNasaData():
   download("https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml")
-  result = ET.parse("log/ISS.OEM_J2K_EPH.xml").getroot().find("oem").find("body").find("segment")
+  result = ET.parse("ISS.OEM_J2K_EPH.xml").getroot().find("oem").find("body").find("segment")
   metadata = result.find("metadata")
   comments = result.find("data").findall("COMMENT")
   state_vectors = result.find("data").findall("stateVector")
@@ -64,6 +64,13 @@ def getNasaData():
     'solarRadCoefficient': get_comment_value(comments[5].text),
     'epoches': list(map(format_epoch, state_vectors[0:1550:]))
   }
+
+  
+  date = datetime.strptime(obj['epoches'][0]['date'], "%Y-%m-%dT%H:%M:%S.%f")
+  position = obj['epoches'][0]['location']
+  velocity = obj['epoches'][0]['velocity']
+
+  print(GCRF_to_ITRF(position, velocity, date))
 
   content = gzip.compress(json.dumps(obj, separators=(',', ':')).encode('utf8'), 9)
   response = make_response(content)
@@ -107,4 +114,3 @@ def getTLEPredictedSightings():
       res.append(item)
 
   return jsonify(res)
-    
