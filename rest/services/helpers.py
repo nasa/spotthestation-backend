@@ -6,6 +6,9 @@ from skyfield import almanac
 from skyfield.api import load
 from .constants import omegaEarth, const_Arcs, JD_J2000_0, DJC, DAS2R, TURNAS, s0, s01, s02, s1, s11, s12, s2, s21, s22, s3, s31, s32, s4, s41, s42
 
+def diag3():
+  return [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+
 def chunks(lst, n):
   for i in range(0, len(lst), n):
     yield lst[i:i + n]
@@ -61,7 +64,7 @@ def iauCal2jd(year, month, day, hour=0, min=0, sec=0):
   b = 0
   c = 0
   if month <= 2:
-    year = year -1
+    year = year - 1
     month = month + 12
   
   if year < 0:
@@ -186,12 +189,12 @@ def iauRy(theta, r):
   cos_theta = cos(theta)
   return [
     [cos_theta * r[0][0] - sin_theta * r[2][0], cos_theta * r[0][1] - sin_theta * r[2][1], cos_theta * r[0][2] - sin_theta * r[2][2]],
-    r[1][0], r[1][1], r[1][2],
+    [r[1][0], r[1][1], r[1][2]],
     [cos_theta * r[2][0] + sin_theta * r[0][0], cos_theta * r[2][1] + sin_theta * r[0][1], cos_theta * r[2][2] + sin_theta * r[0][2]]
   ]
 
 def iauFw2m(gamb, phib, psi, eps):
-  r = numpy.diag(3)
+  r = diag3()
   r = iauRz(gamb, r)
   r = iauRx(phib, r)
   r = iauRz(-psi, r)
@@ -223,19 +226,23 @@ def iauS06(date1, date2, x, y):
   meanLongitudeVenus = iauFave03(t)
   meanLongitudeEarth = iauFae03(t)
   generalLongitudeAccumulatedPrecesion = iauFapa03(t)
-  fundamentalArguments = [meanAnomalyMoon, meanAnomalySun, meanLongitudeMoonMinusAN,
+  fundamentalArguments = numpy.matrix([meanAnomalyMoon, meanAnomalySun, meanLongitudeMoonMinusAN,
                             meanElongationMoonSun, meanLongitudeMoonAN, meanLongitudeVenus,
-                            meanLongitudeEarth, generalLongitudeAccumulatedPrecesion]
-  a = numpy.transpose(numpy.transpose(s0) * fundamentalArguments).sum(axis=1)
-  w0 = w0 + sum(s01 * sin(a)) + sum(s02 * cos(a))
-  a = numpy.transpose(numpy.transpose(s1) * fundamentalArguments).sum(axis=1)
-  w1 = w1 + sum(s11 * sin(a)) + sum(s12 * cos(a))
-  a = numpy.transpose(numpy.transpose(s2) * fundamentalArguments).sum(axis=1)
-  w2 = w2 + sum(s21 * sin(a)) + sum(s22 * cos(a))
-  a = numpy.transpose(numpy.transpose(s3) * fundamentalArguments).sum(axis=1)
-  w3 = w3 + sum(s31 * sin(a)) + sum(s32 * cos(a))
-  a = numpy.transpose(numpy.transpose(s4) * fundamentalArguments).sum(axis=1)
-  w4 = w4 + sum(s41 * sin(a)) + sum(s42 * cos(a))
+                            meanLongitudeEarth, generalLongitudeAccumulatedPrecesion])
+
+  def summ(a, b):
+    return sum(numpy.multiply(numpy.matrix(a),numpy.transpose(b)).flatten().tolist()[0])
+
+  a = numpy.multiply(numpy.matrix(s0),fundamentalArguments).sum(axis=1).flatten().tolist()
+  w0 = w0 + summ(s01, numpy.sin(a)) + summ(s02, numpy.cos(a))
+  a = numpy.multiply(numpy.matrix(s1),fundamentalArguments).sum(axis=1).flatten().tolist()
+  w1 = w1 + summ(s11, numpy.sin(a)) + summ(s12, numpy.cos(a))
+  a = numpy.multiply(numpy.matrix(s2),fundamentalArguments).sum(axis=1).flatten().tolist()
+  w2 = w2 + summ(s21, numpy.sin(a)) + summ(s22, numpy.cos(a))
+  a = numpy.multiply(numpy.matrix(s3),fundamentalArguments).sum(axis=1).flatten().tolist()
+  w3 = w3 + summ(s31, numpy.sin(a)) + summ(s32, numpy.cos(a))
+  a = numpy.multiply(numpy.matrix(s4),fundamentalArguments).sum(axis=1).flatten().tolist()
+  w4 = w4 + summ(s41, numpy.sin(a)) + summ(s42, numpy.cos(a))
   
   return (w0 + (w1 + (w2 + (w3 + (w4 + w5 * t) * t) * t) * t) * t) * DAS2R - x * y / 2.0
 
@@ -243,8 +250,8 @@ def rem(x, y):
   return x - trunc(x / y) * y
 
 def iauEra00(dj1, dj2):
-  d1 = min(list(dj1, dj2))
-  d2 = max(list(dj1, dj2))
+  d1 = min([dj1, dj2])
+  d2 = max([dj1, dj2])
   
   t = d1 + (d2 - JD_J2000_0)
   f = (d1 - trunc(d1)) + (d2 - trunc(d2))
@@ -282,7 +289,7 @@ def iauGst06(uta, utb, tta, ttb, rnpb):
   return gst
 
 def iauPom00(xp, yp, sp):
-  return iauRx(-yp, iauRy(-xp, iauRz(sp, numpy.diag(3))))
+  return iauRx(-yp, iauRy(-xp, iauRz(sp, diag3())))
 
 def iauSp00(date1, date2):
   t = ((date1 - JD_J2000_0) + date2) / DJC
@@ -354,25 +361,26 @@ def earthPositions():
 
 def IERS(eop, Mjd_UTC):
   mjd = floor(Mjd_UTC)
-  
-  i = numpy.where(mjd == eop[:,3][0]) #???????????????????????
-
-  print(i)
+  i = 0
+  for idx, line in enumerate(eop):
+    if mjd == line[3]:
+      i = idx
+      break
 
   preeop = eop[i]
   nexteop = eop[i + 1]
   mfme = 1440 * (Mjd_UTC - mjd)
   fixf = mfme/1440
   
-  x_pole = preeop[5] + (nexteop[5] - preeop[5]) * fixf
-  y_pole = preeop[6] + (nexteop[6] - preeop[6]) * fixf
-  UT1_UTC = preeop[7] + (nexteop[7] - preeop[7]) * fixf
-  LOD = preeop[8] + (nexteop[8] - preeop[8]) * fixf
-  dpsi = preeop[9] + (nexteop[9] - preeop[9]) * fixf
-  deps = preeop[10] + (nexteop[10] - preeop[10]) * fixf
-  dx_pole = preeop[11] + (nexteop[11] - preeop[11]) * fixf
-  dy_pole = preeop[12] + (nexteop[12] - preeop[12]) * fixf
-  TAI_UTC = preeop[13]
+  x_pole = preeop[4] + (nexteop[4] - preeop[4]) * fixf
+  y_pole = preeop[5] + (nexteop[5] - preeop[5]) * fixf
+  UT1_UTC = preeop[6] + (nexteop[6] - preeop[6]) * fixf
+  LOD = preeop[7] + (nexteop[7] - preeop[7]) * fixf
+  dpsi = preeop[8] + (nexteop[8] - preeop[8]) * fixf
+  deps = preeop[9] + (nexteop[9] - preeop[9]) * fixf
+  dx_pole = preeop[10] + (nexteop[10] - preeop[10]) * fixf
+  dy_pole = preeop[11] + (nexteop[11] - preeop[11]) * fixf
+  TAI_UTC = preeop[12]
   x_pole = x_pole/const_Arcs
   y_pole = y_pole/const_Arcs
   dpsi = dpsi/const_Arcs
@@ -383,8 +391,8 @@ def IERS(eop, Mjd_UTC):
   return x_pole, y_pole, UT1_UTC, LOD, dpsi, deps, TAI_UTC
   
 def ECI_to_ECEF(MJD_UTC, Y0, Y1):
-  x_pole, y_pole, UT1_UTC, LOD, dpsi, deps, TAI_UTC = IERS(earthPositions, MJD_UTC)
-  TT_UTC = timeDiffs(UT1_UTC, TAI_UTC)
+  x_pole, y_pole, UT1_UTC, LOD, dpsi, deps, TAI_UTC = IERS(earthPositions(), MJD_UTC)
+  TT_UTC = timeDiffs(UT1_UTC, TAI_UTC)[8]
   year, month, day, hour, min, sec = invjday(MJD_UTC + 2400000.5)
   DJMJD0, DATE  = iauCal2jd(year, month, day)
   TIME = (60 * (60 * hour + min) + sec)/86400
@@ -393,21 +401,22 @@ def ECI_to_ECEF(MJD_UTC, Y0, Y1):
   TUT = TIME + UT1_UTC/86400
   UT1 = DATE + TUT
   NPB = iauPnm06a(DJMJD0, TT, dpsi, deps)
-  theta = iauRz(iauGst06(DJMJD0, UT1, DJMJD0, TT, NPB), numpy.diag(3))
+  theta = numpy.matrix(iauRz(iauGst06(DJMJD0, UT1, DJMJD0, TT, NPB), diag3()))
   PMM = iauPom00(x_pole, y_pole, iauSp00(DJMJD0, TT))
-  S = [[0, 1, 0], [-1, 0, 0], [0, 0, 0]]
- 
+  S = numpy.matrix([[0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
+
   omega = omegaEarth - 8.43994809e-10 * LOD
-  dTheta = omega * S@theta
+
+  dTheta = numpy.multiply(omega, S@theta)
   U = PMM@theta@NPB
   dU = PMM@dTheta@NPB
   r = U@Y0
   v = U@Y1 + dU@Y0
-  return r, v
+  return r.tolist()[0], v.tolist()[0]
 
 def GCRF_to_ITRF(position_GCRF, velocity_GCRF, date):
-  year = date.year + 1900
-  month = date.month + 1
+  year = date.year
+  month = date.month
   day = date.day
   hour = date.hour
   minute = date.minute
