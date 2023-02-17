@@ -1,13 +1,16 @@
 import requests
 import xml.etree.ElementTree as ET
 import gzip
+import math
 
 from flask import Blueprint, json, make_response, jsonify
 from skyfield.api import EarthSatellite, load, utc, wgs84
+from skyfield.positionlib import ICRF
+from skyfield.toposlib import ITRSPosition
 from datetime import datetime, timedelta
 from pytz import timezone
 from ..services.helpers import (
-  datetime_range, download, get_comment_value, format_epoch, chunks, deg_to_compass, calculate_twinlites, GCRF_to_ITRF
+  datetime_range, download, get_comment_value, format_epoch, chunks, deg_to_compass, calculate_twinlites, GCRF_to_ITRF, ECEF_to_look_angles
 )
 
 bp = Blueprint('tracking', __name__, url_prefix='/tracking')
@@ -47,6 +50,7 @@ def index():
 
 @bp.route('/nasa')
 def getNasaData():
+  ts = load.timescale()
   download("https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml")
   result = ET.parse("ISS.OEM_J2K_EPH.xml").getroot().find("oem").find("body").find("segment")
   metadata = result.find("metadata")
@@ -64,13 +68,17 @@ def getNasaData():
     'solarRadCoefficient': get_comment_value(comments[5].text),
     'epoches': list(map(format_epoch, state_vectors[0:1550:]))
   }
-
   
   date = datetime.strptime(obj['epoches'][0]['date'], "%Y-%m-%dT%H:%M:%S.%f")
   position = obj['epoches'][0]['location']
   velocity = obj['epoches'][0]['velocity']
 
-  print(GCRF_to_ITRF(position, velocity, date))
+  r, v = GCRF_to_ITRF(position, velocity, date)
+  
+  Az, El, rangeSat = ECEF_to_look_angles(30.266666, -97.733330, 0.5, r[0], r[1], r[2])
+
+  print(math.degrees(Az))
+  print(math.degrees(El))
 
   content = gzip.compress(json.dumps(obj, separators=(',', ':')).encode('utf8'), 9)
   response = make_response(content)
@@ -90,6 +98,9 @@ def getTLEPredictedSightings():
   t, events = iss.find_events(location, t0, t1, 10)
   
   res = []
+
+  print(t0.tt)
+  print(ts.tt_jd([t0.tt, t1.tt]))
 
   for event in chunks(list(zip(t, events)), 3):
     ti0, _ = event[0]

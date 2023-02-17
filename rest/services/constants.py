@@ -9,9 +9,13 @@ TURNAS = 1296000.0 # Arcseconds in a full circle
 # Date-related constants
 JD_J2000_0 = 2451545.0 # Julian Day of J2000.0 epoch.
 DJC = 36525.0
+DAY_S = 86400.0
 
 # Other constants required for calculation of acceleration
 omegaEarth = 15.04106717866910/3600*(pi/180) # Earth rotation (derivative of GSMT at J2000) in rad/s
+
+no_kozai = 0.0472294454407
+tau = 6.283185307179586476925287
 
 s0 = [
   [0, 0, 0, 0, 1, 0, 0, 0],

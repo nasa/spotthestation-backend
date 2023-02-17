@@ -1,10 +1,13 @@
-from math import sin, cos, pi, floor, trunc, atan2
+from math import sin, cos, pi, floor, trunc, atan2, sqrt, asin, radians
 import numpy
 import requests
 import datetime as dt
 from skyfield import almanac
 from skyfield.api import load
-from .constants import omegaEarth, const_Arcs, JD_J2000_0, DJC, DAS2R, TURNAS, s0, s01, s02, s1, s11, s12, s2, s21, s22, s3, s31, s32, s4, s41, s42
+from skyfield.searchlib import _find_discrete, find_maxima
+from .constants import omegaEarth, const_Arcs, JD_J2000_0, DJC, DAS2R, TURNAS, s0, s01, s02, s1, s11, s12, s2, s21, s22, s3, s31, s32, s4, s41, s42, DAY_S, no_kozai, tau
+
+_identity = numpy.identity(3)
 
 def diag3():
   return [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
@@ -424,3 +427,92 @@ def GCRF_to_ITRF(position_GCRF, velocity_GCRF, date):
   _, Mjd_UTC = iauCal2jd(year, month, day, hour, minute, second)
 
   return ECI_to_ECEF(Mjd_UTC, position_GCRF, velocity_GCRF)
+
+def geodetic_to_ECEF(longitude, latitude, altitude):
+  a = 6378.137
+  b = 6356.7523142
+  f = (a - b) / a
+  e2 = ((2 * f) - (f * f))
+  normal = a / sqrt(1 - (e2 * (sin(latitude) * sin(latitude))))
+
+  x = (normal + altitude) * cos(latitude) * cos(longitude)
+  y = (normal + altitude) * cos(latitude) * sin(longitude)
+  z = ((normal * (1 - e2)) + altitude) * sin(latitude)
+  return x, y, z
+
+def topocentric(longitude, latitude, altitude, x, y, z):
+  ox, oy, oz = geodetic_to_ECEF(longitude, latitude, altitude)
+
+  rx = x - ox
+  ry = y - oy
+  rz = z - oz
+
+  topS = ((sin(latitude) * cos(longitude) * rx) + (sin(latitude) * sin(longitude) * ry)) - (cos(latitude) * rz)
+
+  topE = (-sin(longitude) * rx) + (cos(longitude) * ry)
+
+  topZ = (cos(latitude) * cos(longitude) * rx) + (cos(latitude) * sin(longitude) * ry) + (sin(latitude) * rz)
+
+  return topS, topE, topZ
+
+def topocentric_to_look_angles(topS, topE, topZ):
+  rangeSat = sqrt((topS * topS) + (topE * topE) + (topZ * topZ))
+  El = asin(topZ / rangeSat)
+  Az = atan2(-topE, topS) + pi
+
+  return Az, El, rangeSat
+
+def ECEF_to_look_angles(longitude, latitude, altitude, x, y, z):
+  topS, topE, topZ = topocentric(radians(longitude), radians(latitude), altitude, x, y, z)
+  return topocentric_to_look_angles(topS, topE, topZ)
+
+def altaz_at(topos, set, t):
+  altitudes = []
+  azimuts = []
+  distances = []
+
+  return numpy.array(), numpy.array(), numpy.array()
+
+def find_events(sat, topos, t0, t1, altitude_degrees=0.0):
+  ts = t0.ts
+  half_second = 0.5 / DAY_S
+  orbits_per_minute = no_kozai / tau
+  orbits_per_day = 24 * 60 * orbits_per_minute
+
+  step_days = 0.05 / max(orbits_per_day, 1.0)
+
+  if step_days > 0.25:
+      step_days = 0.25
+
+  def cheat(t):
+      """Avoid computing expensive values that cancel out anyway."""
+      t.gast = t.tt * 0.0
+      t.M = t.MT = _identity
+
+  def altitude_at(t):
+      cheat(t)
+      return altaz_at(sat, topos, t)[0]
+
+  altitude_at.step_days = step_days
+  tmax, altitude = find_maxima(t0, t1, altitude_at, half_second, 12)
+  if not tmax:
+      return tmax, numpy.ones_like(tmax)
+
+  keepers = altitude >= altitude_degrees
+  jdmax = tmax.tt[keepers]
+  ones = numpy.ones_like(jdmax, 'uint8')
+
+  def below_horizon_at(t):
+      cheat(t)
+      return altaz_at(sat, topos, t)[0] < altitude_degrees
+
+  doublets = numpy.repeat(numpy.concatenate(((t0.tt,), jdmax, (t1.tt,))), 2)
+  jdo = (doublets[:-1] + doublets[1:]) / 2.0
+
+  trs, rs = _find_discrete(t0.ts, jdo, below_horizon_at, half_second, 8)
+
+  jd = numpy.concatenate((jdmax, trs.tt))
+  v = numpy.concatenate((ones, rs * 2))
+
+  i = jd.argsort()
+  return ts.tt_jd(jd[i]), v[i]
