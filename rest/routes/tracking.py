@@ -10,7 +10,7 @@ from skyfield.toposlib import ITRSPosition
 from datetime import datetime, timedelta
 from pytz import timezone
 from ..services.helpers import (
-  datetime_range, download, get_comment_value, format_epoch, chunks, deg_to_compass, calculate_twinlites, GCRF_to_ITRF, ECEF_to_look_angles
+  datetime_range, download, get_comment_value, format_epoch, chunks, deg_to_compass, calculate_twinlites, GCRF_to_ITRF, find_events
 )
 
 bp = Blueprint('tracking', __name__, url_prefix='/tracking')
@@ -52,6 +52,7 @@ def index():
 def getNasaData():
   ts = load.timescale()
   download("https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml")
+  download("http://www.celestrak.com/SpaceData/EOP-All.txt")
   result = ET.parse("ISS.OEM_J2K_EPH.xml").getroot().find("oem").find("body").find("segment")
   metadata = result.find("metadata")
   comments = result.find("data").findall("COMMENT")
@@ -69,16 +70,21 @@ def getNasaData():
     'epoches': list(map(format_epoch, state_vectors[0:1550:]))
   }
   
-  date = datetime.strptime(obj['epoches'][0]['date'], "%Y-%m-%dT%H:%M:%S.%f")
-  position = obj['epoches'][0]['location']
-  velocity = obj['epoches'][0]['velocity']
+  sat = []
+  for epoch in obj['epoches']:
+    date = datetime.strptime(epoch['date'], "%Y-%m-%dT%H:%M:%S.%f")
+    r, v = GCRF_to_ITRF(epoch['location'], epoch['velocity'], date)
+    print(date)
+    sat.append({
+      'date': date,
+      'location': r,
+      'velocity': v
+    })
 
-  r, v = GCRF_to_ITRF(position, velocity, date)
+  t0 = ts.from_datetime(datetime.fromisoformat(obj['epoches'][0]['date']).replace(tzinfo=utc))
+  t1 = ts.from_datetime(datetime.fromisoformat(obj['epoches'][-1]['date']).replace(tzinfo=utc))
   
-  Az, El, rangeSat = ECEF_to_look_angles(30.266666, -97.733330, 0.5, r[0], r[1], r[2])
-
-  print(math.degrees(Az))
-  print(math.degrees(El))
+  print(find_events(sat, [30.266666, -97.733330, 0.5], t0, t1, 10))
 
   content = gzip.compress(json.dumps(obj, separators=(',', ':')).encode('utf8'), 9)
   response = make_response(content)
@@ -98,9 +104,6 @@ def getTLEPredictedSightings():
   t, events = iss.find_events(location, t0, t1, 10)
   
   res = []
-
-  print(t0.tt)
-  print(ts.tt_jd([t0.tt, t1.tt]))
 
   for event in chunks(list(zip(t, events)), 3):
     ti0, _ = event[0]

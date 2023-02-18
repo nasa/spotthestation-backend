@@ -1,10 +1,10 @@
-from math import sin, cos, pi, floor, trunc, atan2, sqrt, asin, radians
+from math import sin, cos, pi, floor, trunc, atan2, sqrt, asin, radians, degrees
 import numpy
 import requests
 import datetime as dt
 from skyfield import almanac
-from skyfield.api import load
-from skyfield.searchlib import _find_discrete, find_maxima
+from skyfield.api import load, utc
+from skyfield.searchlib import _find_discrete, _choose_brackets, _identify_maxima, _remove_adjacent_duplicates, _trace, _fix_numpy_deprecation
 from .constants import omegaEarth, const_Arcs, JD_J2000_0, DJC, DAS2R, TURNAS, s0, s01, s02, s1, s11, s12, s2, s21, s22, s3, s31, s32, s4, s41, s42, DAY_S, no_kozai, tau
 
 _identity = numpy.identity(3)
@@ -349,7 +349,12 @@ def invjday(jd):
   return year, month, day, hour, min, sec
 
 def earthPositions():
-  raw_positions_data = requests.get("http://www.celestrak.com/SpaceData/EOP-All.txt").text.splitlines()
+  # raw_positions_data = requests.get("http://www.celestrak.com/SpaceData/EOP-All.txt").text.splitlines()
+  # raw_positions_data = open('EOP-All.txt', 'r').readlines()
+  raw_positions_data = []
+  with open('EOP-All.txt', 'r') as f:
+    raw_positions_data = [line.rstrip() for line in f]
+  
   begin_observed = raw_positions_data.index("BEGIN OBSERVED")
   end_observed = raw_positions_data.index("END OBSERVED")
   begin_predicted = raw_positions_data.index("BEGIN PREDICTED")
@@ -466,45 +471,109 @@ def ECEF_to_look_angles(longitude, latitude, altitude, x, y, z):
   topS, topE, topZ = topocentric(radians(longitude), radians(latitude), altitude, x, y, z)
   return topocentric_to_look_angles(topS, topE, topZ)
 
-def altaz_at(topos, set, t):
+def altaz_at(sat, topos, t, ts):
   altitudes = []
   azimuts = []
   distances = []
+  
+  positions = []
 
-  return numpy.array(), numpy.array(), numpy.array()
+  for position in sat: 
+    for time in list(t):
+      if ts.from_datetime(position['date'].replace(tzinfo=utc)).tt == time.tt:
+        positions.append(position)
+
+  for position in positions:
+    r = position['location']
+    Az, El, rangeSat = ECEF_to_look_angles(topos[0], topos[1], topos[2], r[0], r[1], r[2])
+    altitudes.append(degrees(El))
+    azimuts.append(degrees(Az))
+    distances.append(rangeSat)
+
+  return numpy.array(altitudes), numpy.array(azimuts), numpy.array(distances)
+
+def find_maxima(start_time, end_time, jd, f, epsilon=1.0 / DAY_S, num=12):
+  ts = start_time.ts
+  jd0 = start_time.tt
+  jd1 = end_time.tt
+
+  end_alpha = numpy.linspace(0.0, 1.0, num)
+  start_alpha = end_alpha[::-1]
+  o = numpy.multiply.outer
+
+  while True:
+    t = ts.tt_jd(jd)
+    y = f(t)
+    
+    if t[1] - t[0] <= epsilon:
+      
+      jd, y = _identify_maxima(jd, y)
+      keepers = (jd >= jd0) & (jd <= jd1)
+
+      jd = jd[keepers]
+      y = y[keepers]
+
+      if len(jd):
+        mask = numpy.concatenate(((True,), numpy.diff(jd) > epsilon))
+        jd = jd[mask]
+        y = y[mask]
+      
+      break
+
+    left, right = _choose_brackets(y)
+    
+    if _trace is not None:
+      _trace((t, y, left, right))
+
+    if not len(left):
+      jd = y = y[0:0]
+      break
+    
+    starts = jd.take(left)
+    ends = jd.take(right)
+    
+    jd = o(starts, start_alpha).flatten() + o(ends, end_alpha).flatten()
+    
+    jd = _remove_adjacent_duplicates(jd)
+      
+  return ts.tt_jd(jd), _fix_numpy_deprecation(y)
+
+def get_jd(sat, ts):
+  res = []
+  for elem in sat:
+    res.append(ts.from_datetime(elem['date'].replace(tzinfo=utc)).tt)
+
+  return numpy.array(res)
 
 def find_events(sat, topos, t0, t1, altitude_degrees=0.0):
   ts = t0.ts
+  jd = get_jd(sat, ts)
   half_second = 0.5 / DAY_S
-  orbits_per_minute = no_kozai / tau
-  orbits_per_day = 24 * 60 * orbits_per_minute
-
-  step_days = 0.05 / max(orbits_per_day, 1.0)
-
-  if step_days > 0.25:
-      step_days = 0.25
-
+  
   def cheat(t):
-      """Avoid computing expensive values that cancel out anyway."""
-      t.gast = t.tt * 0.0
-      t.M = t.MT = _identity
+    t.gast = t.tt * 0.0
+    t.M = t.MT = _identity
 
   def altitude_at(t):
-      cheat(t)
-      return altaz_at(sat, topos, t)[0]
+    cheat(t)
+    return altaz_at(sat, topos, t, ts)[0]
 
-  altitude_at.step_days = step_days
-  tmax, altitude = find_maxima(t0, t1, altitude_at, half_second, 12)
+  tmax, altitude = find_maxima(t0, t1, jd, altitude_at, half_second, 12)
+
+  print(tmax)
+  print(altitude)
+
   if not tmax:
-      return tmax, numpy.ones_like(tmax)
+    return tmax, numpy.ones_like(tmax)
 
+  print('here')
   keepers = altitude >= altitude_degrees
   jdmax = tmax.tt[keepers]
   ones = numpy.ones_like(jdmax, 'uint8')
 
   def below_horizon_at(t):
-      cheat(t)
-      return altaz_at(sat, topos, t)[0] < altitude_degrees
+    cheat(t)
+    return altaz_at(sat, topos, t, ts)[0] < altitude_degrees
 
   doublets = numpy.repeat(numpy.concatenate(((t0.tt,), jdmax, (t1.tt,))), 2)
   jdo = (doublets[:-1] + doublets[1:]) / 2.0
