@@ -1,12 +1,9 @@
 import requests
 import xml.etree.ElementTree as ET
 import gzip
-import math
 
 from flask import Blueprint, json, make_response, jsonify
 from skyfield.api import EarthSatellite, load, utc, wgs84
-from skyfield.positionlib import ICRF
-from skyfield.toposlib import ITRSPosition
 from datetime import datetime, timedelta
 from pytz import timezone
 from ..services.helpers import (
@@ -50,7 +47,6 @@ def index():
 
 @bp.route('/nasa')
 def getNasaData():
-  ts = load.timescale()
   download("https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml")
   download("http://www.celestrak.com/SpaceData/EOP-All.txt")
   result = ET.parse("ISS.OEM_J2K_EPH.xml").getroot().find("oem").find("body").find("segment")
@@ -69,22 +65,6 @@ def getNasaData():
     'solarRadCoefficient': get_comment_value(comments[5].text),
     'epoches': list(map(format_epoch, state_vectors[0:1550:]))
   }
-  
-  sat = []
-  for epoch in obj['epoches']:
-    date = datetime.strptime(epoch['date'], "%Y-%m-%dT%H:%M:%S.%f")
-    r, v = GCRF_to_ITRF(epoch['location'], epoch['velocity'], date)
-    print(date)
-    sat.append({
-      'date': date,
-      'location': r,
-      'velocity': v
-    })
-
-  t0 = ts.from_datetime(datetime.fromisoformat(obj['epoches'][0]['date']).replace(tzinfo=utc))
-  t1 = ts.from_datetime(datetime.fromisoformat(obj['epoches'][-1]['date']).replace(tzinfo=utc))
-  
-  print(find_events(sat, [30.266666, -97.733330, 0.5], t0, t1, 10))
 
   content = gzip.compress(json.dumps(obj, separators=(',', ':')).encode('utf8'), 9)
   response = make_response(content)
@@ -128,3 +108,48 @@ def getTLEPredictedSightings():
       res.append(item)
 
   return jsonify(res)
+
+@bp.route('/oem-nasa')
+def getOemNasa():
+  zone = timezone('US/Central')
+  ts = load.timescale()
+  download("https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml")
+  download("http://www.celestrak.com/SpaceData/EOP-All.txt")
+  result = ET.parse("ISS.OEM_J2K_EPH.xml").getroot().find("oem").find("body").find("segment")
+  state_vectors = result.find("data").findall("stateVector")
+  epoches = list(map(format_epoch, state_vectors[0:1550:]))
+ 
+  sat = []
+  for epoch in epoches:
+    date = datetime.strptime(epoch['date'], "%Y-%m-%dT%H:%M:%S.%f")
+    r, v = GCRF_to_ITRF(epoch['location'], epoch['velocity'], date)
+
+    sat.append({
+      'date': date,
+      'location': r,
+      'velocity': v
+    })
+
+  events = find_events(sat, [30.266666, -97.733330, 159.0], 10)
+  res = []
+  
+  for event in events:
+    ti0 = ts.from_datetime(event['start_time'].replace(tzinfo=utc))
+    ti1 = ts.from_datetime(event['max_elevation_time'].replace(tzinfo=utc))
+    ti2 = ts.from_datetime(event['end_time'].replace(tzinfo=utc))
+
+    twinlites = calculate_twinlites(wgs84.latlon(30.266666, -97.733330), ti1.astimezone(zone), zone)
+
+    if twinlites[0] < ti1.astimezone(zone) < twinlites[2] or twinlites[4] < ti1.astimezone(zone) < twinlites[7]:
+      item = {
+        'date': ti0.astimezone(zone).strftime('%a %b %-d, %-I:%M %p'),
+        'maxHeight': round(event['max_elevation']),
+        'appears': str(round(event['min_altitude'])) + " " + deg_to_compass(event['min_azimut']),
+        'disappears': str(round(event['max_altitude'])) + " " + deg_to_compass(event['max_azimut']),
+        'visible': round((ti2.astimezone(zone) - ti0.astimezone(zone)).seconds / 60)
+      }
+
+      res.append(item)
+
+  return jsonify(res)
+  

@@ -3,11 +3,8 @@ import numpy
 import requests
 import datetime as dt
 from skyfield import almanac
-from skyfield.api import load, utc
-from skyfield.searchlib import _find_discrete, _choose_brackets, _identify_maxima, _remove_adjacent_duplicates, _trace, _fix_numpy_deprecation
-from .constants import omegaEarth, const_Arcs, JD_J2000_0, DJC, DAS2R, TURNAS, s0, s01, s02, s1, s11, s12, s2, s21, s22, s3, s31, s32, s4, s41, s42, DAY_S, no_kozai, tau
-
-_identity = numpy.identity(3)
+from skyfield.api import load
+from .constants import omegaEarth, const_Arcs, JD_J2000_0, DJC, DAS2R, TURNAS, s0, s01, s02, s1, s11, s12, s2, s21, s22, s3, s31, s32, s4, s41, s42
 
 def diag3():
   return [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
@@ -438,15 +435,15 @@ def geodetic_to_ECEF(longitude, latitude, altitude):
   b = 6356.7523142
   f = (a - b) / a
   e2 = ((2 * f) - (f * f))
-  normal = a / sqrt(1 - (e2 * (sin(latitude) * sin(latitude))))
+  normal = a / sqrt(1 - (e2 * sin(latitude)**2))
 
   x = (normal + altitude) * cos(latitude) * cos(longitude)
   y = (normal + altitude) * cos(latitude) * sin(longitude)
   z = ((normal * (1 - e2)) + altitude) * sin(latitude)
   return x, y, z
 
-def topocentric(longitude, latitude, altitude, x, y, z):
-  ox, oy, oz = geodetic_to_ECEF(longitude, latitude, altitude)
+def topocentric(latitude, longitude, altitude, x, y, z):
+  ox, oy, oz = geodetic_to_ECEF(latitude, longitude, altitude)
 
   rx = x - ox
   ry = y - oy
@@ -467,121 +464,47 @@ def topocentric_to_look_angles(topS, topE, topZ):
 
   return Az, El, rangeSat
 
-def ECEF_to_look_angles(longitude, latitude, altitude, x, y, z):
-  topS, topE, topZ = topocentric(radians(longitude), radians(latitude), altitude, x, y, z)
+def ECEF_to_look_angles(latitude, longitude, altitude, x, y, z):
+  topS, topE, topZ = topocentric(radians(latitude), radians(longitude), altitude, x, y, z)
   return topocentric_to_look_angles(topS, topE, topZ)
 
-def altaz_at(sat, topos, t, ts):
-  altitudes = []
-  azimuts = []
-  distances = []
-  
-  positions = []
-
-  for position in sat: 
-    for time in list(t):
-      if ts.from_datetime(position['date'].replace(tzinfo=utc)).tt == time.tt:
-        positions.append(position)
-
-  for position in positions:
-    r = position['location']
-    Az, El, rangeSat = ECEF_to_look_angles(topos[0], topos[1], topos[2], r[0], r[1], r[2])
-    altitudes.append(degrees(El))
-    azimuts.append(degrees(Az))
-    distances.append(rangeSat)
-
-  return numpy.array(altitudes), numpy.array(azimuts), numpy.array(distances)
-
-def find_maxima(start_time, end_time, jd, f, epsilon=1.0 / DAY_S, num=12):
-  ts = start_time.ts
-  jd0 = start_time.tt
-  jd1 = end_time.tt
-
-  end_alpha = numpy.linspace(0.0, 1.0, num)
-  start_alpha = end_alpha[::-1]
-  o = numpy.multiply.outer
-
-  while True:
-    t = ts.tt_jd(jd)
-    y = f(t)
-    
-    if t[1] - t[0] <= epsilon:
-      
-      jd, y = _identify_maxima(jd, y)
-      keepers = (jd >= jd0) & (jd <= jd1)
-
-      jd = jd[keepers]
-      y = y[keepers]
-
-      if len(jd):
-        mask = numpy.concatenate(((True,), numpy.diff(jd) > epsilon))
-        jd = jd[mask]
-        y = y[mask]
-      
-      break
-
-    left, right = _choose_brackets(y)
-    
-    if _trace is not None:
-      _trace((t, y, left, right))
-
-    if not len(left):
-      jd = y = y[0:0]
-      break
-    
-    starts = jd.take(left)
-    ends = jd.take(right)
-    
-    jd = o(starts, start_alpha).flatten() + o(ends, end_alpha).flatten()
-    
-    jd = _remove_adjacent_duplicates(jd)
-      
-  return ts.tt_jd(jd), _fix_numpy_deprecation(y)
-
-def get_jd(sat, ts):
+def altaz(sat, topos):
   res = []
-  for elem in sat:
-    res.append(ts.from_datetime(elem['date'].replace(tzinfo=utc)).tt)
 
-  return numpy.array(res)
+  for position in sat:
+    r = position['location']
+    Az, El, _ = ECEF_to_look_angles(topos[0], topos[1], topos[2], r[0], r[1], r[2])
+    res.append({
+      'time': position['date'],
+      'elevation': degrees(El),
+      'azimut': degrees(Az),
+    })
 
-def find_events(sat, topos, t0, t1, altitude_degrees=0.0):
-  ts = t0.ts
-  jd = get_jd(sat, ts)
-  half_second = 0.5 / DAY_S
-  
-  def cheat(t):
-    t.gast = t.tt * 0.0
-    t.M = t.MT = _identity
+  return res
 
-  def altitude_at(t):
-    cheat(t)
-    return altaz_at(sat, topos, t, ts)[0]
+def find_events(sat, topos, threshold=0.0):
+  data = altaz(sat, topos)
 
-  tmax, altitude = find_maxima(t0, t1, jd, altitude_at, half_second, 12)
+  periods = []
+  current_period = None
+  for d in data:
+    if d['elevation'] > threshold:
+      if current_period is None:
+        current_period = {'start_time': d['time'], 'max_elevation': d['elevation'], 'max_elevation_time': d['time'], 'min_azimut': d['azimut'], 'max_azimut': d['azimut'], 'min_altitude': d['elevation'], 'max_altitude': d['elevation']}
+      else:
+        if d['elevation'] > current_period['max_elevation']:
+          current_period['max_elevation'] = d['elevation']
+          current_period['max_elevation_time'] = d['time']
+        if d['azimut'] < current_period['min_azimut']:
+          current_period['min_azimut'] = d['azimut']
+          current_period['min_altitude'] = d['elevation']
+        elif d['azimut'] > current_period['max_azimut']:
+          current_period['max_azimut'] = d['azimut']
+          current_period['max_altitude'] = d['elevation']
+    elif current_period is not None:
+      current_period['end_time'] = d['time']
+      # current_period['duration'] = current_period['end_time'] - current_period['start_time']
+      periods.append(current_period)
+      current_period = None
 
-  print(tmax)
-  print(altitude)
-
-  if not tmax:
-    return tmax, numpy.ones_like(tmax)
-
-  print('here')
-  keepers = altitude >= altitude_degrees
-  jdmax = tmax.tt[keepers]
-  ones = numpy.ones_like(jdmax, 'uint8')
-
-  def below_horizon_at(t):
-    cheat(t)
-    return altaz_at(sat, topos, t, ts)[0] < altitude_degrees
-
-  doublets = numpy.repeat(numpy.concatenate(((t0.tt,), jdmax, (t1.tt,))), 2)
-  jdo = (doublets[:-1] + doublets[1:]) / 2.0
-
-  trs, rs = _find_discrete(t0.ts, jdo, below_horizon_at, half_second, 8)
-
-  jd = numpy.concatenate((jdmax, trs.tt))
-  v = numpy.concatenate((ones, rs * 2))
-
-  i = jd.argsort()
-  return ts.tt_jd(jd[i]), v[i]
+  return periods
