@@ -346,8 +346,6 @@ def invjday(jd):
   return year, month, day, hour, min, sec
 
 def earthPositions():
-  # raw_positions_data = requests.get("http://www.celestrak.com/SpaceData/EOP-All.txt").text.splitlines()
-  # raw_positions_data = open('EOP-All.txt', 'r').readlines()
   raw_positions_data = []
   with open('EOP-All.txt', 'r') as f:
     raw_positions_data = [line.rstrip() for line in f]
@@ -395,8 +393,8 @@ def IERS(eop, Mjd_UTC):
 
   return x_pole, y_pole, UT1_UTC, LOD, dpsi, deps, TAI_UTC
   
-def ECI_to_ECEF(MJD_UTC, Y0, Y1):
-  x_pole, y_pole, UT1_UTC, LOD, dpsi, deps, TAI_UTC = IERS(earthPositions(), MJD_UTC)
+def ECI_to_ECEF(MJD_UTC, Y0, Y1, earthPositions):
+  x_pole, y_pole, UT1_UTC, LOD, dpsi, deps, TAI_UTC = IERS(earthPositions, MJD_UTC)
   TT_UTC = timeDiffs(UT1_UTC, TAI_UTC)[8]
   year, month, day, hour, min, sec = invjday(MJD_UTC + 2400000.5)
   DJMJD0, DATE  = iauCal2jd(year, month, day)
@@ -419,7 +417,7 @@ def ECI_to_ECEF(MJD_UTC, Y0, Y1):
   v = U@Y1 + dU@Y0
   return r.tolist()[0], v.tolist()[0]
 
-def GCRF_to_ITRF(position_GCRF, velocity_GCRF, date):
+def GCRF_to_ITRF(position_GCRF, velocity_GCRF, date, earthPositions):
   year = date.year
   month = date.month
   day = date.day
@@ -428,9 +426,9 @@ def GCRF_to_ITRF(position_GCRF, velocity_GCRF, date):
   second = date.second
   _, Mjd_UTC = iauCal2jd(year, month, day, hour, minute, second)
 
-  return ECI_to_ECEF(Mjd_UTC, position_GCRF, velocity_GCRF)
+  return ECI_to_ECEF(Mjd_UTC, position_GCRF, velocity_GCRF, earthPositions)
 
-def geodetic_to_ECEF(longitude, latitude, altitude):
+def geodetic_to_ECEF(latitude, longitude, altitude):
   a = 6378.137
   b = 6356.7523142
   f = (a - b) / a
@@ -508,3 +506,31 @@ def find_events(sat, topos, threshold=0.0):
       current_period = None
 
   return periods
+
+def linear_interpolation(data, parts):
+  interpolated_data = []
+  for i in range(len(data)-1):
+      start_date = data[i]['date']
+      end_date = data[i+1]['date']
+      delta_time = (end_date - start_date) / parts
+      for j in range(1, parts):
+          
+          intermediate_location = [
+              data[i]['location'][k] + j*(data[i+1]['location'][k] - data[i]['location'][k])/parts
+              for k in range(3)
+          ]
+          
+          intermediate_velocity = [
+              data[i]['velocity'][k] + j*(data[i+1]['velocity'][k] - data[i]['velocity'][k])/parts
+              for k in range(3)
+          ]
+          
+          intermediate_data = {
+              'date': start_date + j*delta_time,
+              'location': intermediate_location,
+              'velocity': intermediate_velocity
+          }
+          interpolated_data.append(intermediate_data)
+  
+  interpolated_data = [data[0]] + interpolated_data + [data[-1]]
+  return interpolated_data

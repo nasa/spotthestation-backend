@@ -7,7 +7,7 @@ from skyfield.api import EarthSatellite, load, utc, wgs84
 from datetime import datetime, timedelta
 from pytz import timezone
 from ..services.helpers import (
-  datetime_range, download, get_comment_value, format_epoch, chunks, deg_to_compass, calculate_twinlites, GCRF_to_ITRF, find_events
+  datetime_range, download, get_comment_value, linear_interpolation, format_epoch, chunks, deg_to_compass, calculate_twinlites, GCRF_to_ITRF, find_events, earthPositions
 )
 
 bp = Blueprint('tracking', __name__, url_prefix='/tracking')
@@ -115,22 +115,24 @@ def getOemNasa():
   ts = load.timescale()
   download("https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml")
   download("http://www.celestrak.com/SpaceData/EOP-All.txt")
+  
+  earth_positions = earthPositions()
   result = ET.parse("ISS.OEM_J2K_EPH.xml").getroot().find("oem").find("body").find("segment")
   state_vectors = result.find("data").findall("stateVector")
-  epoches = list(map(format_epoch, state_vectors[0:1550:]))
- 
+  epoches = list(map(format_epoch, state_vectors))
+
   sat = []
   for epoch in epoches:
     date = datetime.strptime(epoch['date'], "%Y-%m-%dT%H:%M:%S.%f")
-    r, v = GCRF_to_ITRF(epoch['location'], epoch['velocity'], date)
+    r, v = GCRF_to_ITRF(epoch['location'], epoch['velocity'], date, earth_positions)
 
     sat.append({
       'date': date,
       'location': r,
       'velocity': v
     })
-
-  events = find_events(sat, [30.266666, -97.733330, 159.0], 10)
+  
+  events = find_events(linear_interpolation(sat, 128), [30.266666, -97.733330, 0], 10)
   res = []
   
   for event in events:
@@ -140,7 +142,7 @@ def getOemNasa():
 
     twinlites = calculate_twinlites(wgs84.latlon(30.266666, -97.733330), ti1.astimezone(zone), zone)
 
-    if twinlites[0] < ti1.astimezone(zone) < twinlites[2] or twinlites[4] < ti1.astimezone(zone) < twinlites[7]:
+    if (twinlites[0] - timedelta(hours=2)) < ti1.astimezone(zone) < twinlites[2] or twinlites[4] < ti1.astimezone(zone) < (twinlites[7] - timedelta(hours=2)):
       item = {
         'date': ti0.astimezone(zone).strftime('%a %b %-d, %-I:%M %p'),
         'maxHeight': round(event['max_elevation']),
