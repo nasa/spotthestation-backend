@@ -2,7 +2,7 @@ import requests
 import xml.etree.ElementTree as ET
 import gzip
 
-from flask import Blueprint, json, make_response, jsonify
+from flask import Blueprint, json, make_response, jsonify, request
 from skyfield.api import EarthSatellite, load, utc, wgs84
 from datetime import datetime, timedelta
 from pytz import timezone
@@ -74,11 +74,13 @@ def getNasaData():
 
 @bp.route('/tle-predict-for-location')
 def getTLEPredictedSightings():
-  zone = timezone('US/Central')
+  lon = float(request.args.get('lon'))
+  lat = float(request.args.get('lat'))
+  zone = timezone(request.args.get('zone'))
   ts = load.timescale()
   norad = requests.get("https://celestrak.org/NORAD/elements/gp.php?NAME=ISS%20(ZARYA)&FORMAT=TLE").text.splitlines()
   iss = EarthSatellite(norad[1], norad[2], norad[0], ts)
-  location = wgs84.latlon(30.266666, -97.733330)
+  location = wgs84.latlon(lat, lon)
   t0 = ts.from_datetime(zone.localize(datetime.fromisoformat('2023-02-03')))
   t1 = ts.from_datetime(zone.localize(datetime.fromisoformat('2023-02-19')))
   t, events = iss.find_events(location, t0, t1, 10)
@@ -111,7 +113,9 @@ def getTLEPredictedSightings():
 
 @bp.route('/oem-nasa')
 def getOemNasa():
-  zone = timezone('US/Central')
+  lon = float(request.args.get('lon'))
+  lat = float(request.args.get('lat'))
+  zone = timezone(request.args.get('zone'))
   ts = load.timescale()
   download("https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml")
   download("http://www.celestrak.com/SpaceData/EOP-All.txt")
@@ -132,7 +136,7 @@ def getOemNasa():
       'velocity': v
     })
   
-  events = find_events(linear_interpolation(sat, 128), [30.266666, -97.733330, 0], 10)
+  events = find_events(linear_interpolation(sat, 20), [lat, lon, 0], 10)
   res = []
   
   for event in events:
@@ -140,11 +144,12 @@ def getOemNasa():
     ti1 = ts.from_datetime(event['max_elevation_time'].replace(tzinfo=utc))
     ti2 = ts.from_datetime(event['end_time'].replace(tzinfo=utc))
 
-    twinlites = calculate_twinlites(wgs84.latlon(30.266666, -97.733330), ti1.astimezone(zone), zone)
+    twinlites = calculate_twinlites(wgs84.latlon(lat, lon), ti1.astimezone(zone), zone)
 
-    if (twinlites[0] - timedelta(hours=2)) < ti1.astimezone(zone) < twinlites[2] or twinlites[4] < ti1.astimezone(zone) < (twinlites[7] - timedelta(hours=2)):
+    if twinlites[0] < ti1.astimezone(zone) < twinlites[2] or twinlites[4] < ti1.astimezone(zone) < twinlites[7]:
       item = {
-        'date': ti0.astimezone(zone).strftime('%a %b %-d, %-I:%M %p'),
+        # 'date': ti0.astimezone(zone).strftime('%a %b %-d, %-I:%M %p'),
+        'date': ti0.utc_datetime().replace(tzinfo=zone).strftime("%Y-%m-%dT%H:%M:%S.%f"),
         'maxHeight': round(event['max_elevation']),
         'appears': str(round(event['min_altitude'])) + " " + deg_to_compass(event['min_azimut']),
         'disappears': str(round(event['max_altitude'])) + " " + deg_to_compass(event['max_azimut']),
