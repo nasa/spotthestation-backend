@@ -1,4 +1,5 @@
 import requests
+import requests_cache
 import xml.etree.ElementTree as ET
 import gzip
 
@@ -9,6 +10,8 @@ from pytz import timezone
 from ..services.helpers import (
   datetime_range, download, get_comment_value, linear_interpolation, format_epoch, chunks, deg_to_compass, calculate_twinlites, GCRF_to_ITRF, find_events, earthPositions
 )
+
+requests_cache.install_cache(cache_name='local_cache', expire_after=3600)
 
 bp = Blueprint('tracking', __name__, url_prefix='/tracking')
 
