@@ -3,7 +3,7 @@ import requests_cache
 import xml.etree.ElementTree as ET
 import gzip
 
-from flask import Blueprint, json, make_response, jsonify, request
+from flask import Blueprint, json, make_response, jsonify, request, current_app
 from skyfield.api import EarthSatellite, load, utc, wgs84
 from datetime import datetime, timedelta
 from pytz import timezone
@@ -14,6 +14,7 @@ from ..services.helpers import (
 requests_cache.install_cache(cache_name='local_cache', expire_after=3600)
 
 bp = Blueprint('tracking', __name__, url_prefix='/tracking')
+sat_data = None
 
 @bp.route('')
 def index():
@@ -116,32 +117,19 @@ def getTLEPredictedSightings():
 
 @bp.route('/oem-nasa')
 def getOemNasa():
+  global sat_data
+  current_app.logger.error('**********')
+  current_app.logger.error(request.args)
   lon = float(request.args.get('lon'))
   lat = float(request.args.get('lat'))
   zone = timezone(request.args.get('zone'))
   ts = load.timescale()
-  download("https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml")
-  download("http://www.celestrak.com/SpaceData/EOP-All.txt")
-  
-  earth_positions = earthPositions()
-  result = ET.parse("ISS.OEM_J2K_EPH.xml").getroot().find("oem").find("body").find("segment")
-  state_vectors = result.find("data").findall("stateVector")
-  epoches = list(map(format_epoch, state_vectors))
-
-  sat = []
-  for epoch in epoches:
-    date = datetime.strptime(epoch['date'], "%Y-%m-%dT%H:%M:%S.%f")
-    r, v = GCRF_to_ITRF(epoch['location'], epoch['velocity'], date, earth_positions)
-
-    sat.append({
-      'date': date,
-      'location': r,
-      'velocity': v
-    })
-  
-  events = find_events(linear_interpolation(sat, 20), [lat, lon, 0], 10)
+  sat = sat_data or get_sat_data()
+  current_app.logger.error('...Events1...')
+  events = find_events(sat, [lat, lon, 0], 10)
   res = []
   
+  current_app.logger.error('...Events...')
   for event in events:
     ti0 = ts.from_datetime(event['start_time'].replace(tzinfo=utc))
     ti1 = ts.from_datetime(event['max_elevation_time'].replace(tzinfo=utc))
@@ -161,5 +149,28 @@ def getOemNasa():
 
       res.append(item)
 
+  current_app.logger.error('==========')
   return jsonify(res)
+
+def get_sat_data():
+  global sat_data
+  download("https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml")
+  download("http://www.celestrak.com/SpaceData/EOP-All.txt")
   
+  earth_positions = earthPositions()
+  result = ET.parse("ISS.OEM_J2K_EPH.xml").getroot().find("oem").find("body").find("segment")
+  state_vectors = result.find("data").findall("stateVector")
+  epoches = list(map(format_epoch, state_vectors))
+
+  sat = []
+  for epoch in epoches:
+    date = datetime.strptime(epoch['date'], "%Y-%m-%dT%H:%M:%S.%f")
+    r, v = GCRF_to_ITRF(epoch['location'], epoch['velocity'], date, earth_positions)
+
+    sat.append({
+      'date': date,
+      'location': r,
+      'velocity': v
+    })
+  sat_data = linear_interpolation(sat, 20)
+  return sat_data
