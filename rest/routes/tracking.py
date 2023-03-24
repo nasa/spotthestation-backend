@@ -1,3 +1,4 @@
+import numpy
 import requests
 import requests_cache
 import xml.etree.ElementTree as ET
@@ -8,7 +9,7 @@ from skyfield.api import EarthSatellite, load, utc, wgs84
 from datetime import datetime, timedelta
 from pytz import timezone
 from ..services.helpers import (
-  datetime_range, download, get_comment_value, linear_interpolation, format_epoch, chunks, deg_to_compass, calculate_twinlites, GCRF_to_ITRF, find_events, earthPositions
+  Topos_xyz, datetime_range, download, ECEF_to_look_angles, get_comment_value, linear_interpolation, format_epoch, chunks, deg_to_compass, calculate_twinlites, GCRF_to_ITRF, find_events, earthPositions
 )
 
 requests_cache.install_cache(cache_name='local_cache', expire_after=3600)
@@ -152,6 +153,38 @@ def getOemNasa():
   current_app.logger.error('==========')
   return jsonify(res)
 
+@bp.route('/iss-data')
+def getISSPath():
+  global sat_data
+  current_app.logger.error('**********')
+  current_app.logger.error(request.args)
+  lon = float(request.args.get('lon'))
+  lat = float(request.args.get('lat'))
+  
+  interpolated_data = sat_data or get_sat_data()
+
+  # Limit the data to the +/- 100 min from now
+  start_dt = (datetime.utcnow() - timedelta(minutes=100)).replace(tzinfo=utc)
+  end_dt = (datetime.utcnow() + timedelta(minutes=100)).replace(tzinfo=utc)
+
+  res = []
+  for position in interpolated_data:
+    date = position['date']
+    if date < start_dt or date > end_dt:
+      continue
+
+    t = Topos_xyz(position['location'][0], position['location'][1], position['location'][2])
+    Az, El, range_set = ECEF_to_look_angles(lat, lon, 0, position['location'][0], position['location'][1], position['location'][2])
+    res.append({
+      'date': position['date'],
+      'latitude': t.latitude.degrees,
+      'longitude': t.longitude.degrees,
+      'azimuth': numpy.rad2deg(Az),
+      'elevation': numpy.rad2deg(El)
+    })
+
+  return jsonify(res)
+
 def get_sat_data():
   global sat_data
   download("https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml")
@@ -164,7 +197,7 @@ def get_sat_data():
 
   sat = []
   for epoch in epoches:
-    date = datetime.strptime(epoch['date'], "%Y-%m-%dT%H:%M:%S.%f")
+    date = datetime.strptime(epoch['date'], "%Y-%m-%dT%H:%M:%S.%f").replace(tzinfo=utc)
     r, v = GCRF_to_ITRF(epoch['location'], epoch['velocity'], date, earth_positions)
 
     sat.append({

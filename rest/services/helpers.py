@@ -1,10 +1,15 @@
-from math import sin, cos, pi, floor, trunc, atan2, sqrt, asin, radians, degrees
+from math import sin, cos, pi, floor, trunc, atan2, sqrt, asin, radians, degrees, atan
 import numpy
 import requests
 import datetime as dt
 from skyfield import almanac
-from skyfield.api import load
+from skyfield.api import load, Topos
+from skyfield.earthlib import reverse_terra
 from .constants import omegaEarth, const_Arcs, JD_J2000_0, DJC, DAS2R, TURNAS, s0, s01, s02, s1, s11, s12, s2, s21, s22, s3, s31, s32, s4, s41, s42
+
+def Topos_xyz(x,y,z):
+  lat,lon,e = reverse_terra((x,y,z),gast=0)
+  return Topos(latitude_degrees=numpy.rad2deg(lat), longitude_degrees=numpy.rad2deg(lon), elevation_m=e)
 
 def diag3():
   return [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
@@ -465,6 +470,27 @@ def topocentric_to_look_angles(topS, topE, topZ):
 def ECEF_to_look_angles(latitude, longitude, altitude, x, y, z):
   topS, topE, topZ = topocentric(radians(latitude), radians(longitude), altitude, x, y, z)
   return topocentric_to_look_angles(topS, topE, topZ)
+
+def altaz_to_latlon(observer_latitude, observer_longitude, Az, El, rangeSat):
+  range_deg = degrees(rangeSat)
+
+  x_t = range_deg * cos(El) * cos(Az)
+  y_t = range_deg * cos(El) * sin(Az)
+  z_t = range_deg * sin(El)
+
+  x_abs = x_t
+  y_abs = y_t * cos(observer_latitude) - z_t * sin(observer_latitude)
+  z_abs = y_t * sin(observer_longitude) + z_t * cos(observer_longitude)
+
+  latitude = degrees(atan(z_abs / sqrt(x_abs**2 + y_abs**2)))
+  longitude = degrees(atan(x_abs / y_abs))
+
+  if y_abs < 0 and x_abs >=0:
+    longitude += 180
+  elif y_abs < 0 and x_abs < 0:
+    longitude -= 180
+
+  return latitude, longitude
 
 def altaz(sat, topos):
   res = []
