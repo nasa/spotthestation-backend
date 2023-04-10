@@ -1,3 +1,4 @@
+from math import ceil
 import numpy
 import requests
 import requests_cache
@@ -98,8 +99,7 @@ def getTLEPredictedSightings():
     ti2, _ = event[2]
 
     twinlites = calculate_twinlites(location, ti1.astimezone(zone), zone)
-
-    if twinlites[0] < ti1.astimezone(zone) < twinlites[2] or twinlites[4] < ti1.astimezone(zone) < twinlites[7]:
+    if ti0.astimezone(zone) <= twinlites[2] or ti2.astimezone(zone) >= twinlites[4]:
       maxHeight, _, _ = (iss - location).at(ti1).altaz()
       appears_altitude, appears_azimut, _ = (iss - location).at(ti0).altaz()
       disappears_altitude, disappears_azimut, _ = (iss - location).at(ti2).altaz()
@@ -109,7 +109,7 @@ def getTLEPredictedSightings():
         'maxHeight': round(maxHeight.degrees),
         'appears': str(round(appears_altitude.degrees)) + " " + deg_to_compass(appears_azimut.degrees),
         'disappears': str(round(disappears_altitude.degrees)) + " " + deg_to_compass(disappears_azimut.degrees),
-        'visible': round((ti2.astimezone(zone) - ti0.astimezone(zone)).seconds / 60)
+        'visible': ceil((ti2.astimezone(zone) - ti0.astimezone(zone)).seconds / 60.0)
       }
 
       res.append(item)
@@ -137,15 +137,13 @@ def getOemNasa():
     ti2 = ts.from_datetime(event['end_time'].replace(tzinfo=utc))
 
     twinlites = calculate_twinlites(wgs84.latlon(lat, lon), ti1.astimezone(zone), zone)
-
-    if twinlites[0] < ti1.astimezone(zone) < twinlites[2] or twinlites[4] < ti1.astimezone(zone) < twinlites[7]:
+    if ti0.astimezone(zone) <= twinlites[2] or ti2.astimezone(zone) >= twinlites[4]:
       item = {
-        # 'date': ti0.astimezone(zone).strftime('%a %b %-d, %-I:%M %p'),
-        'date': ti0.utc_datetime().replace(tzinfo=zone).strftime("%Y-%m-%dT%H:%M:%S.%f"),
+        'date': ti0.utc_datetime().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
         'maxHeight': round(event['max_elevation']),
         'appears': str(round(event['min_altitude'])) + " " + deg_to_compass(event['min_azimut']),
         'disappears': str(round(event['max_altitude'])) + " " + deg_to_compass(event['max_azimut']),
-        'visible': round((ti2.astimezone(zone) - ti0.astimezone(zone)).seconds / 60)
+        'visible': ceil((ti2.astimezone(zone) - ti0.astimezone(zone)).seconds / 60.0)
       }
 
       res.append(item)
@@ -205,5 +203,5 @@ def get_sat_data():
       'location': r,
       'velocity': v
     })
-  sat_data = linear_interpolation(sat, 20)
+  sat_data = linear_interpolation(sat, 60)
   return sat_data
