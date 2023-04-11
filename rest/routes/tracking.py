@@ -10,7 +10,7 @@ from skyfield.api import EarthSatellite, load, utc, wgs84
 from datetime import datetime, timedelta
 from pytz import timezone
 from ..services.helpers import (
-  Topos_xyz, datetime_range, download, ECEF_to_look_angles, get_comment_value, linear_interpolation, format_epoch, chunks, deg_to_compass, calculate_twinlites, GCRF_to_ITRF, find_events, earthPositions
+  Topos_xyz, datetime_range, calculate_day_stage, download, ECEF_to_look_angles, get_comment_value, linear_interpolation, format_epoch, chunks, deg_to_compass, calculate_twinlites, GCRF_to_ITRF, find_events, earthPositions
 )
 
 requests_cache.install_cache(cache_name='local_cache', expire_after=3600)
@@ -137,16 +137,17 @@ def getOemNasa():
     ti2 = ts.from_datetime(event['end_time'].replace(tzinfo=utc))
 
     twinlites = calculate_twinlites(wgs84.latlon(lat, lon), ti1.astimezone(zone), zone)
-    if ti0.astimezone(zone) <= twinlites[2] or ti2.astimezone(zone) >= twinlites[4]:
-      item = {
-        'date': ti0.utc_datetime().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-        'maxHeight': round(event['max_elevation']),
-        'appears': str(round(event['min_altitude'])) + " " + deg_to_compass(event['min_azimut']),
-        'disappears': str(round(event['max_altitude'])) + " " + deg_to_compass(event['max_azimut']),
-        'visible': ceil((ti2.astimezone(zone) - ti0.astimezone(zone)).seconds / 60.0)
-      }
-
-      res.append(item)
+    day_stage = calculate_day_stage(twinlites, ti1.astimezone(zone))
+    # if ti0.astimezone(zone) <= twinlites[2] or ti2.astimezone(zone) >= twinlites[4]:
+    item = {
+      'date': ti0.utc_datetime().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+      'maxHeight': round(event['max_elevation']),
+      'appears': str(round(event['min_altitude'])) + " " + deg_to_compass(event['min_azimut']),
+      'disappears': str(round(event['max_altitude'])) + " " + deg_to_compass(event['max_azimut']),
+      'visible': ceil((ti2.astimezone(zone) - ti0.astimezone(zone)).seconds / 60.0),
+      'dayStage': day_stage
+    }
+    res.append(item)
 
   current_app.logger.error('==========')
   return jsonify(res)

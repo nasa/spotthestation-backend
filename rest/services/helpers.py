@@ -64,6 +64,14 @@ def calculate_twinlites(bluffton, now, zone):
 
   return res
 
+def calculate_day_stage(twinlites, event_time):
+  if twinlites[0] > event_time or event_time > twinlites[7]:
+    return 0
+  if twinlites[0] < event_time < twinlites[3] or twinlites[5] < event_time < twinlites[7]:
+    return 1
+  if twinlites[3] < event_time < twinlites[5]:
+    return 2
+
 def iauCal2jd(year, month, day, hour=0, min=0, sec=0):
   djm0 = 2400000.5
   b = 0
