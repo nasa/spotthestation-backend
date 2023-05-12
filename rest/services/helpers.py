@@ -65,9 +65,9 @@ def calculate_twinlites(bluffton, now, zone):
   return res
 
 def calculate_day_stage(twinlites, event_time):
-  if twinlites[0] > event_time or event_time > twinlites[7]:
+  if twinlites[0] > event_time > twinlites[len(twinlites) - 1]:
     return 0
-  if twinlites[0] < event_time < twinlites[3] or twinlites[5] < event_time < twinlites[7]:
+  if twinlites[0] < event_time < twinlites[3] or twinlites[5] < event_time < twinlites[len(twinlites) - 1]:
     return 1
   if twinlites[3] < event_time < twinlites[5]:
     return 2

@@ -139,15 +139,16 @@ def getOemNasa():
     twinlites = calculate_twinlites(wgs84.latlon(lat, lon), ti1.astimezone(zone), zone)
     day_stage = calculate_day_stage(twinlites, ti1.astimezone(zone))
     # if ti0.astimezone(zone) <= twinlites[2] or ti2.astimezone(zone) >= twinlites[4]:
-    item = {
-      'date': ti0.utc_datetime().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-      'maxHeight': round(event['max_elevation']),
-      'appears': str(round(event['min_altitude'])) + " " + deg_to_compass(event['min_azimut']),
-      'disappears': str(round(event['max_altitude'])) + " " + deg_to_compass(event['max_azimut']),
-      'visible': ceil((ti2.astimezone(zone) - ti0.astimezone(zone)).seconds / 60.0),
-      'dayStage': day_stage
-    }
-    res.append(item)
+    if twinlites[0] < ti1.astimezone(zone) < twinlites[2] or twinlites[4] < ti1.astimezone(zone) < twinlites[len(twinlites) - 1]:
+      item = {
+        'date': ti0.astimezone(zone).strftime("%Y-%m-%dT%H:%M:%S.%f"),
+        'maxHeight': round(event['max_elevation']),
+        'appears': str(round(event['min_altitude'])) + " " + deg_to_compass(event['min_azimut']),
+        'disappears': str(round(event['max_altitude'])) + " " + deg_to_compass(event['max_azimut']),
+        'visible': ceil((ti2.astimezone(zone) - ti0.astimezone(zone)).seconds / 60.0),
+        'dayStage': day_stage
+      }
+      res.append(item)
 
   current_app.logger.error('==========')
   return jsonify(res)
