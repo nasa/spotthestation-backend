@@ -1,7 +1,11 @@
-Flask~=2.2
+blinker~=1.6.2
 datetime~=5.0
-skyfield~=1.45
+Flask~=2.2
+Flask-Mail~=0.9.1
+python-dotenv~=1.0.0
 requests~=2.28
 requests-cache~=0.9
+skyfield~=1.45
 numba~=0.56
 numpy~=1.21.0
+urllib3~=1.26.14
