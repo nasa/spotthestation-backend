@@ -16,7 +16,9 @@ from ..services.helpers import (
 requests_cache.install_cache(cache_name='local_cache', expire_after=3600)
 
 bp = Blueprint('tracking', __name__, url_prefix='/tracking')
+
 sat_data = None
+sat_model = None
 
 @bp.route('')
 def index():
@@ -156,12 +158,15 @@ def getOemNasa():
 @bp.route('/iss-data')
 def getISSPath():
   global sat_data
+  global sat_model
   current_app.logger.error('**********')
   current_app.logger.error(request.args)
   lon = float(request.args.get('lon'))
   lat = float(request.args.get('lat'))
   
   interpolated_data = sat_data or get_sat_data()
+  satellite = sat_model or get_sat_model()
+  ts = load.timescale()
 
   # Limit the data to the +/- 100 min from now
   start_dt = (datetime.utcnow() - timedelta(minutes=100)).replace(tzinfo=utc)
@@ -180,7 +185,8 @@ def getISSPath():
       'latitude': t.latitude.degrees,
       'longitude': t.longitude.degrees,
       'azimuth': numpy.rad2deg(Az),
-      'elevation': numpy.rad2deg(El)
+      'elevation': numpy.rad2deg(El),
+      'altitude': satellite.at(ts.from_datetime(position['date'].replace(tzinfo=utc))).distance().km - 6371
     })
 
   return jsonify(res)
@@ -207,3 +213,10 @@ def get_sat_data():
     })
   sat_data = linear_interpolation(sat, 60)
   return sat_data
+
+def get_sat_model():
+  global sat_model
+  ts = load.timescale()
+  norad = requests.get("https://celestrak.org/NORAD/elements/gp.php?NAME=ISS%20(ZARYA)&FORMAT=TLE").text.splitlines()
+  sat_model = EarthSatellite(norad[1], norad[2], norad[0], ts)
+  return sat_model
