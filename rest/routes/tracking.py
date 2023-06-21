@@ -141,7 +141,7 @@ def getOemNasa():
     twinlites = calculate_twinlites(wgs84.latlon(lat, lon), ti1.astimezone(zone), zone)
     day_stage = calculate_day_stage(twinlites, ti1.astimezone(zone))
     # if ti0.astimezone(zone) <= twinlites[2] or ti2.astimezone(zone) >= twinlites[4]:
-    if twinlites[0] < ti1.astimezone(zone) < twinlites[2] or twinlites[4] < ti1.astimezone(zone) < twinlites[len(twinlites) - 1]:
+    if ti1.astimezone(zone) < twinlites[2] or twinlites[4] < ti1.astimezone(zone) < twinlites[-1]:
       item = {
         'date': ti0.astimezone(zone).strftime("%Y-%m-%dT%H:%M:%S.%f"),
         'maxHeight': round(event['max_elevation']),
