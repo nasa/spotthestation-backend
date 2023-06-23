@@ -20,7 +20,7 @@ bp = Blueprint('tracking', __name__, url_prefix='/tracking')
 sat_data = None
 sat_model = None
 
-@bp.route('')
+@bp.route('', methods=['POST'])
 def index():
   ts = load.timescale()
   norad = requests.get("https://celestrak.org/NORAD/elements/gp.php?NAME=ISS%20(ZARYA)&FORMAT=TLE").text.splitlines()
@@ -53,7 +53,7 @@ def index():
 
   return jsonify(res)
 
-@bp.route('/nasa')
+@bp.route('/nasa', methods=['POST'])
 def getNasaData():
   download("https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml")
   download("http://www.celestrak.com/SpaceData/EOP-All.txt")
@@ -80,11 +80,11 @@ def getNasaData():
   response.headers['Content-Encoding'] = 'gzip'
   return response
 
-@bp.route('/tle-predict-for-location')
+@bp.route('/tle-predict-for-location', methods=['POST'])
 def getTLEPredictedSightings():
-  lon = float(request.args.get('lon'))
-  lat = float(request.args.get('lat'))
-  zone = timezone(request.args.get('zone'))
+  lon = float(request.json.get('lon'))
+  lat = float(request.json.get('lat'))
+  zone = timezone(request.json.get('zone'))
   ts = load.timescale()
   norad = requests.get("https://celestrak.org/NORAD/elements/gp.php?NAME=ISS%20(ZARYA)&FORMAT=TLE").text.splitlines()
   iss = EarthSatellite(norad[1], norad[2], norad[0], ts)
@@ -118,14 +118,14 @@ def getTLEPredictedSightings():
 
   return jsonify(res)
 
-@bp.route('/oem-nasa')
+@bp.route('/oem-nasa', methods=['POST'])
 def getOemNasa():
   global sat_data
   current_app.logger.error('**********')
-  current_app.logger.error(request.args)
-  lon = float(request.args.get('lon'))
-  lat = float(request.args.get('lat'))
-  zone = timezone(request.args.get('zone'))
+  current_app.logger.error(request.json)
+  lon = float(request.json.get('lon'))
+  lat = float(request.json.get('lat'))
+  zone = timezone(request.json.get('zone'))
   ts = load.timescale()
   sat = sat_data or get_sat_data()
   current_app.logger.error('...Events1...')
@@ -155,18 +155,16 @@ def getOemNasa():
   current_app.logger.error('==========')
   return jsonify(res)
 
-@bp.route('/iss-data')
+@bp.route('/iss-data', methods=['POST'])
 def getISSPath():
   global sat_data
   global sat_model
   current_app.logger.error('**********')
-  current_app.logger.error(request.args)
-  lon = float(request.args.get('lon'))
-  lat = float(request.args.get('lat'))
-  
+  current_app.logger.error(request.json)
+  lon = float(request.json.get('lon'))
+  lat = float(request.json.get('lat'))
+
   interpolated_data = sat_data or get_sat_data()
-  satellite = sat_model or get_sat_model()
-  ts = load.timescale()
 
   # Limit the data to the +/- 100 min from now
   start_dt = (datetime.utcnow() - timedelta(minutes=100)).replace(tzinfo=utc)
@@ -186,7 +184,7 @@ def getISSPath():
       'longitude': t.longitude.degrees,
       'azimuth': numpy.rad2deg(Az),
       'elevation': numpy.rad2deg(El),
-      'altitude': satellite.at(ts.from_datetime(position['date'].replace(tzinfo=utc))).distance().km - 6371
+      'altitude': 413.1879682867666
     })
 
   return jsonify(res)
