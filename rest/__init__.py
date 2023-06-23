@@ -13,7 +13,8 @@ app.config['MAIL_PORT'] = os.getenv('MAIL_PORT')
 app.config['MAIL_USE_SSL'] = True
 app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
-app.config['MAIL_RECIPIENT'] = os.getenv('MAIL_RECIPIENT')
+app.config['MAIL_SENDER'] = os.getenv('MAIL_SENDER')
+app.config['MAIL_RECIPIENTS'] = os.getenv('MAIL_RECIPIENTS')
 
 app.register_blueprint(tracking.bp)
 app.register_blueprint(mailer.bp)

@@ -7,8 +7,8 @@ bp = Blueprint('mailer', __name__, url_prefix='/mailer')
 def send_mail():
   data = request.get_json()
   mail = Mail(current_app)
-  msg = Message(data['subject'], sender=current_app.config['MAIL_USERNAME'], recipients=[current_app.config['MAIL_RECIPIENT']])
+  recipients = current_app.config['MAIL_RECIPIENTS'].replace(' ','').split(',')
+  msg = Message(data['subject'], sender=current_app.config['MAIL_SENDER'], recipients=recipients)
   msg.body = data['body']
   mail.send(msg)
   return 'Mail sent!'
-  
