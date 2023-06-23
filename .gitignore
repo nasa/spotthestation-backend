@@ -22,3 +22,5 @@ build/
 !.elasticbeanstalk/*.global.yml
 
 log/*
+celerybeat-schedule
+local_cache.sqlite

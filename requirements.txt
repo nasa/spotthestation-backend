@@ -1,8 +1,10 @@
 blinker~=1.6.2
+celery~=5.3.1
 datetime~=5.0
 Flask~=2.2
 Flask-Mail~=0.9.1
 python-dotenv~=1.0.0
+redis~=4.5.4
 requests~=2.28
 requests-cache~=0.9
 skyfield~=1.45

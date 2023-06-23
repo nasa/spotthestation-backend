@@ -1,9 +1,13 @@
+import pickle
 from math import ceil
 import numpy
 import requests
 import requests_cache
 import xml.etree.ElementTree as ET
 import gzip
+import os
+from redis import Redis
+from ..tasks import get_sat_data
 
 from flask import Blueprint, json, make_response, jsonify, request, current_app
 from skyfield.api import EarthSatellite, load, utc, wgs84
@@ -15,10 +19,8 @@ from ..services.helpers import (
 
 requests_cache.install_cache(cache_name='local_cache', expire_after=3600)
 
+redis = Redis.from_url(os.getenv('REDIS_URL'))
 bp = Blueprint('tracking', __name__, url_prefix='/tracking')
-
-sat_data = None
-sat_model = None
 
 @bp.route('', methods=['POST'])
 def index():
@@ -33,7 +35,7 @@ def index():
 
   for t in datetime_range(current_date, current_date + timedelta(days=5), timedelta(minutes=4)):
     geocentric = satellite.at(ts.from_datetime(t))
-    
+
     obj = {
       'time': t.strftime("%Y-%m-%dT%H:%M:%S.%f"),
       'position': geocentric.position.km.tolist(),
@@ -41,7 +43,7 @@ def index():
       'location': str(geocentric.subpoint())
     }
 
-    f.write(obj['time'] 
+    f.write(obj['time']
     + "\n\t\tPosition: " + str(obj['position'])
     + "\n\t\tVelocity: " + str(obj['velocity'])
     + "\n\t\tLocation: " + obj['location']
@@ -68,8 +70,8 @@ def getNasaData():
     'centerName': metadata.find("CENTER_NAME").text,
     'mass': get_comment_value(comments[1].text),
     'dragArea': get_comment_value(comments[2].text),
-    'gragCoefficient': get_comment_value(comments[3].text), 
-    'solarRadArea': get_comment_value(comments[4].text), 
+    'gragCoefficient': get_comment_value(comments[3].text),
+    'solarRadArea': get_comment_value(comments[4].text),
     'solarRadCoefficient': get_comment_value(comments[5].text),
     'epoches': list(map(format_epoch, state_vectors[0:1550:]))
   }
@@ -92,7 +94,7 @@ def getTLEPredictedSightings():
   t0 = ts.from_datetime(zone.localize(datetime.fromisoformat('2023-02-03')))
   t1 = ts.from_datetime(zone.localize(datetime.fromisoformat('2023-02-19')))
   t, events = iss.find_events(location, t0, t1, 10)
-  
+
   res = []
 
   for event in chunks(list(zip(t, events)), 3):
@@ -120,18 +122,17 @@ def getTLEPredictedSightings():
 
 @bp.route('/oem-nasa', methods=['POST'])
 def getOemNasa():
-  global sat_data
   current_app.logger.error('**********')
   current_app.logger.error(request.json)
   lon = float(request.json.get('lon'))
   lat = float(request.json.get('lat'))
   zone = timezone(request.json.get('zone'))
   ts = load.timescale()
-  sat = sat_data or get_sat_data()
+  sat = sat_data()
   current_app.logger.error('...Events1...')
   events = find_events(sat, [lat, lon, 0], 10)
   res = []
-  
+
   current_app.logger.error('...Events...')
   for event in events:
     ti0 = ts.from_datetime(event['start_time'].replace(tzinfo=utc))
@@ -157,14 +158,12 @@ def getOemNasa():
 
 @bp.route('/iss-data', methods=['POST'])
 def getISSPath():
-  global sat_data
-  global sat_model
   current_app.logger.error('**********')
   current_app.logger.error(request.json)
   lon = float(request.json.get('lon'))
   lat = float(request.json.get('lat'))
 
-  interpolated_data = sat_data or get_sat_data()
+  interpolated_data = sat_data()
 
   # Limit the data to the +/- 100 min from now
   start_dt = (datetime.utcnow() - timedelta(minutes=100)).replace(tzinfo=utc)
@@ -189,32 +188,10 @@ def getISSPath():
 
   return jsonify(res)
 
-def get_sat_data():
-  global sat_data
-  download("https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml")
-  download("http://www.celestrak.com/SpaceData/EOP-All.txt")
-  
-  earth_positions = earthPositions()
-  result = ET.parse("ISS.OEM_J2K_EPH.xml").getroot().find("oem").find("body").find("segment")
-  state_vectors = result.find("data").findall("stateVector")
-  epoches = list(map(format_epoch, state_vectors))
+def sat_data():
+  data = redis.get('sat_data')
+  if data is not None:
+    return pickle.loads(data)
 
-  sat = []
-  for epoch in epoches:
-    date = datetime.strptime(epoch['date'], "%Y-%m-%dT%H:%M:%S.%f").replace(tzinfo=utc)
-    r, v = GCRF_to_ITRF(epoch['location'], epoch['velocity'], date, earth_positions)
+  return get_sat_data()
 
-    sat.append({
-      'date': date,
-      'location': r,
-      'velocity': v
-    })
-  sat_data = linear_interpolation(sat, 60)
-  return sat_data
-
-def get_sat_model():
-  global sat_model
-  ts = load.timescale()
-  norad = requests.get("https://celestrak.org/NORAD/elements/gp.php?NAME=ISS%20(ZARYA)&FORMAT=TLE").text.splitlines()
-  sat_model = EarthSatellite(norad[1], norad[2], norad[0], ts)
-  return sat_model
