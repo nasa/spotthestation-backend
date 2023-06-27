@@ -144,7 +144,7 @@ def getOemNasa():
     # if ti0.astimezone(zone) <= twinlites[2] or ti2.astimezone(zone) >= twinlites[4]:
     if ti1.astimezone(zone) < twinlites[2] or twinlites[4] < ti1.astimezone(zone) < twinlites[-1]:
       item = {
-        'date': ti0.astimezone(zone).strftime("%Y-%m-%dT%H:%M:%S.%f"),
+        'date': ti0.astimezone(zone).strftime("%Y-%m-%dT%H:%M:%S.%f%z"),
         'maxHeight': round(event['max_elevation']),
         'appears': str(round(event['min_altitude'])) + " " + deg_to_compass(event['min_azimut']),
         'disappears': str(round(event['max_altitude'])) + " " + deg_to_compass(event['max_azimut']),
