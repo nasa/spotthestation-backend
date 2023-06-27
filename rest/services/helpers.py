@@ -558,11 +558,14 @@ def linear_interpolation(data, parts):
               data[i]['velocity'][k] + j*(data[i+1]['velocity'][k] - data[i]['velocity'][k])/parts
               for k in range(3)
           ]
+
+          intermediate_altitude = data[i]['altitude'] + j * (data[i + 1]['altitude'] - data[i]['altitude']) / parts
           
           intermediate_data = {
               'date': start_date + j*delta_time,
               'location': intermediate_location,
-              'velocity': intermediate_velocity
+              'velocity': intermediate_velocity,
+              'altitude': intermediate_altitude,
           }
           interpolated_data.append(intermediate_data)
   

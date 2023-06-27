@@ -183,7 +183,7 @@ def getISSPath():
       'longitude': t.longitude.degrees,
       'azimuth': numpy.rad2deg(Az),
       'elevation': numpy.rad2deg(El),
-      'altitude': 413.1879682867666
+      'altitude': position['altitude']
     })
 
   return jsonify(res)
