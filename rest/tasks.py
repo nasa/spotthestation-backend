@@ -54,4 +54,5 @@ def get_sat_data():
 
     sat_data = linear_interpolation(sat, 60)
     redis.set('sat_data', pickle.dumps(sat_data))
+    redis.set('sat_data_updated_at', datetime.now(tz=utc).isoformat())
     return sat_data

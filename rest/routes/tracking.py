@@ -1,25 +1,22 @@
-import pickle
 from math import ceil
 import numpy
 import requests
 import requests_cache
 import xml.etree.ElementTree as ET
 import gzip
-import os
-from redis import Redis
-from ..tasks import get_sat_data
+from dateutil.parser import isoparse
 
 from flask import Blueprint, json, make_response, jsonify, request, current_app
 from skyfield.api import EarthSatellite, load, utc, wgs84
 from datetime import datetime, timedelta
 from pytz import timezone
+from ..services.sat_data import sat_data
 from ..services.helpers import (
-  Topos_xyz, datetime_range, calculate_day_stage, download, ECEF_to_look_angles, get_comment_value, linear_interpolation, format_epoch, chunks, deg_to_compass, calculate_twinlites, GCRF_to_ITRF, find_events, earthPositions
+  Topos_xyz, datetime_range, calculate_day_stage, download, ECEF_to_look_angles, get_comment_value, format_epoch, chunks, deg_to_compass, calculate_twinlites, GCRF_to_ITRF, find_events, earthPositions
 )
 
+sat_data()
 requests_cache.install_cache(cache_name='local_cache', expire_after=3600)
-
-redis = Redis.from_url(os.getenv('REDIS_URL'))
 bp = Blueprint('tracking', __name__, url_prefix='/tracking')
 
 @bp.route('', methods=['POST'])
@@ -188,10 +185,22 @@ def getISSPath():
 
   return jsonify(res)
 
-def sat_data():
-  data = redis.get('sat_data')
-  if data is not None:
-    return pickle.loads(data)
 
-  return get_sat_data()
+@bp.route('/iss-data-raw', methods=['POST'])
+def getISSDataRaw():
+  current_app.logger.error('**********')
+  current_app.logger.error(request.json)
 
+  interpolated_data = sat_data()
+
+  start_dt = isoparse(request.json.get('from')) if request.json.get('from') is not None else None
+  end_dt = isoparse(request.json.get('to')) if request.json.get('to') is not None else None
+
+  res = []
+  for position in interpolated_data:
+    date = position['date']
+    if start_dt is not None and end_dt is not None and (date < start_dt or date > end_dt):
+      continue
+    res.append(position)
+
+  return jsonify(res)
