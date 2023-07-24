@@ -191,15 +191,15 @@ def getISSDataRaw():
   current_app.logger.error('**********')
   current_app.logger.error(request.json)
 
-  interpolated_data = sat_data()
+  data = sat_data(key='sat_data_not_interpolated')
 
   start_dt = isoparse(request.json.get('from')) if request.json.get('from') is not None else None
   end_dt = isoparse(request.json.get('to')) if request.json.get('to') is not None else None
 
   res = []
-  for position in interpolated_data:
+  for position in data:
     date = position['date']
-    if start_dt is not None and end_dt is not None and (date < start_dt or date > end_dt):
+    if (start_dt is not None and date < start_dt) or (end_dt is not None and date > end_dt):
       continue
     res.append(position)
 

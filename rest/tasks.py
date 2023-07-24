@@ -52,7 +52,8 @@ def get_sat_data():
                              r[2] * 1000 / AU_M)).distance().km - er
         })
 
-    sat_data = linear_interpolation(sat, 60)
+    sat_data = linear_interpolation(sat, 16)
     redis.set('sat_data', pickle.dumps(sat_data))
+    redis.set('sat_data_not_interpolated', pickle.dumps(sat))
     redis.set('sat_data_updated_at', datetime.now(tz=utc).isoformat())
     return sat_data
