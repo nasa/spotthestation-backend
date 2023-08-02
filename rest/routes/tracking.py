@@ -160,7 +160,11 @@ def getISSPath():
   lon = float(request.json.get('lon'))
   lat = float(request.json.get('lat'))
 
-  interpolated_data = sat_data()
+  sat_data_type = 'sat_data'
+  if str(request.json.get('without_interpolation')) == '1':
+    sat_data_type = 'sat_data_not_interpolated'
+
+  interpolated_data = sat_data(sat_data_type)
 
   # Limit the data to the +/- 100 min from now
   start_dt = (datetime.utcnow() - timedelta(minutes=100)).replace(tzinfo=utc)
