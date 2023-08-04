@@ -527,12 +527,8 @@ def find_events(sat, topos, threshold=0.0):
         if d['elevation'] > current_period['max_elevation']:
           current_period['max_elevation'] = d['elevation']
           current_period['max_elevation_time'] = d['time']
-        if d['azimut'] < current_period['min_azimut']:
-          current_period['min_azimut'] = d['azimut']
-          current_period['min_altitude'] = d['elevation']
-        elif d['azimut'] > current_period['max_azimut']:
-          current_period['max_azimut'] = d['azimut']
-          current_period['max_altitude'] = d['elevation']
+        current_period['max_azimut'] = d['azimut']
+        current_period['max_altitude'] = d['elevation']
     elif current_period is not None:
       current_period['end_time'] = d['time']
       # current_period['duration'] = current_period['end_time'] - current_period['start_time']
