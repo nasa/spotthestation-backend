@@ -124,6 +124,7 @@ def getOemNasa():
   lon = float(request.json.get('lon'))
   lat = float(request.json.get('lat'))
   zone = timezone(request.json.get('zone'))
+  v = request.json.get('v')
   ts = load.timescale()
   sat = sat_data()
   current_app.logger.error('...Events1...')
@@ -132,14 +133,14 @@ def getOemNasa():
 
   current_app.logger.error('...Events...')
   for event in events:
+
     ti0 = ts.from_datetime(event['start_time'].replace(tzinfo=utc))
     ti1 = ts.from_datetime(event['max_elevation_time'].replace(tzinfo=utc))
     ti2 = ts.from_datetime(event['end_time'].replace(tzinfo=utc))
 
     twinlites = calculate_twinlites(wgs84.latlon(lat, lon), ti1.astimezone(zone), zone)
     day_stage = calculate_day_stage(twinlites, ti1.astimezone(zone))
-    # if ti0.astimezone(zone) <= twinlites[2] or ti2.astimezone(zone) >= twinlites[4]:
-    if ti1.astimezone(zone) < twinlites[2] or twinlites[4] < ti1.astimezone(zone) < twinlites[-1]:
+    if day_stage == 0 or day_stage == 1:
       item = {
         'date': ti0.astimezone(zone).strftime("%Y-%m-%dT%H:%M:%S.%f%z"),
         'minAltitude': round(event['min_altitude']),
@@ -153,7 +154,7 @@ def getOemNasa():
       res.append(item)
 
   current_app.logger.error('==========')
-  return jsonify(res)
+  return jsonify({ 'sightings': res, 'lastSightingOrbitPointAt': sat[-1]['date'] } if v == '2' else res)
 
 @bp.route('/iss-data', methods=['POST'])
 def getISSPath():
