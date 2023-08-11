@@ -30,10 +30,21 @@ def get_sat_data():
     earth_positions = earthPositions()
     result = ET.parse("ISS.OEM_J2K_EPH.xml").getroot().find("oem").find("body").find("segment")
     state_vectors = result.find("data").findall("stateVector")
-    epoches = list(map(format_epoch, state_vectors))
+    raw_epoches = list(map(format_epoch, state_vectors))
     eph = load('de421.bsp')
     earth = eph['earth']
     ts = load.timescale()
+
+    epoches = []
+    for i in range(len(raw_epoches) - 1):
+        date = datetime.strptime(raw_epoches[i]['date'], "%Y-%m-%dT%H:%M:%S.%f").replace(tzinfo=utc)
+
+        if len(epoches) == 0 or (date - epoches[-1]['date']).total_seconds() >= 60 * 4:
+            epoches.append({
+                'date': date,
+                'location': raw_epoches[i]['location'],
+                'velocity': raw_epoches[i]['velocity']
+            })
 
     spline_points = []
     for epoch in epoches:
@@ -44,8 +55,8 @@ def get_sat_data():
     interpolated_sat = []
 
     for i in range(len(epoches) - 1):
-        start = datetime.strptime(epoches[i]['date'], "%Y-%m-%dT%H:%M:%S.%f").replace(tzinfo=utc)
-        end = datetime.strptime(epoches[i + 1]['date'], "%Y-%m-%dT%H:%M:%S.%f").replace(tzinfo=utc)
+        start = epoches[i]['date']
+        end = epoches[i + 1]['date']
 
         steps = max(1, int((end - start).total_seconds() // 15))
 
