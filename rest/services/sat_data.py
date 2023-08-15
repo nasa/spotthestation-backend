@@ -33,6 +33,14 @@ def sat_data(key='sat_data'):
     return sat_data_not_interpolated_cache
 
 
+def last_updated():
+  updated_at = redis.get('sat_data_updated_at')
+  if updated_at is None:
+    return None
+
+  return updated_at.decode('ascii')
+
+
 sat_data_cache = None
 sat_data_not_interpolated_cache = None
 sat_data_cache_updated_at = None

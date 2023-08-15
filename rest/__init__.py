@@ -1,11 +1,11 @@
 import os
 import logging
 
+from dotenv import load_dotenv
 from flask import Flask, jsonify
 from .routes import tracking, mailer
-from dotenv import load_dotenv
+from .services.sat_data import last_updated
 
-health_status = True
 load_dotenv()
 
 app = Flask(__name__)
@@ -25,11 +25,4 @@ app.register_blueprint(mailer.bp)
 
 @app.route('/health')
 def health():
-    if health_status:
-        resp = jsonify(health="healthy")
-        resp.status_code = 200
-    else:
-        resp = jsonify(health="unhealthy")
-        resp.status_code = 500
-
-    return resp
+    return jsonify(health="healthy", sat_data_updated_at=last_updated())
