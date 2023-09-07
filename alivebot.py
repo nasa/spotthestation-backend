@@ -1,14 +1,14 @@
 import requests
-import time
 import os
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
+from redis import Redis
 
 load_dotenv()
 
+redis = Redis.from_url(os.getenv('REDIS_URL'))
 slack_webhook_url = os.getenv("SLACK_WEBHOOK_URL")
 server_url = os.getenv("SERVER_URL", "http://localhost:5000")
-status = None
 
 
 def send_slack_message(message):
@@ -21,9 +21,17 @@ def send_slack_message(message):
 
 
 def set_status(value, details=None):
-    global status
-    if value != status:
+    status = redis.get('server_status')
+    status = None if status is None else status.decode('ascii')
 
+    status_updated_at = redis.get('server_status_updated_at')
+    noon = datetime.now(tz=timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
+    is_noon = (
+        status_updated_at is not None
+        and datetime.fromisoformat(status_updated_at.decode('ascii')) < noon <= datetime.now(tz=timezone.utc)
+    )
+
+    if value != status or is_noon:
         message = ""
         if value == "healthy":
             message = "✅ Server is healthy"
@@ -36,9 +44,10 @@ def set_status(value, details=None):
         elif value == "stale_data":
             message = f"❌ ISS trajectory data is stale. Last update: {details}"
 
+        redis.set('server_status_updated_at', datetime.now(tz=timezone.utc).isoformat())
         send_slack_message("\nSTS Backend Report:\n" + message)
 
-    status = value
+    redis.set('server_status', value)
 
 
 def check_health():
