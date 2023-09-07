@@ -1,4 +1,3 @@
-from celery import shared_task
 import xml.etree.ElementTree as ET
 from dotenv import load_dotenv
 from redis import Redis
@@ -22,7 +21,6 @@ load_dotenv()
 
 redis = Redis.from_url(os.getenv('REDIS_URL'))
 
-@shared_task
 def get_sat_data():
     download("https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml")
     download("http://www.celestrak.com/SpaceData/EOP-All.txt")

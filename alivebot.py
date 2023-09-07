@@ -64,7 +64,7 @@ def check_health():
             if sat_data_updated_at is None:
                 return set_status("invalid_response", "sat_data_updated_at")
 
-            if datetime.now(tz=timezone.utc) - timedelta(hours=2) > datetime.fromisoformat(sat_data_updated_at):
+            if datetime.now(tz=timezone.utc) - timedelta(hours=3) > datetime.fromisoformat(sat_data_updated_at):
                 return set_status("stale_data", sat_data_updated_at)
 
             set_status("healthy")
