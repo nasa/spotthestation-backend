@@ -46,7 +46,7 @@ def format_epoch(value):
     'velocity': [float(value.find('X_DOT').text), float(value.find('Y_DOT').text), float(value.find('Z_DOT').text)],
   }
 
-def calculate_twinlites(bluffton, now, zone):
+def calculate_twilight(bluffton, now, zone):
   midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
   next_midnight = midnight + dt.timedelta(days=1)
 
@@ -64,10 +64,10 @@ def calculate_twinlites(bluffton, now, zone):
 
   return res
 
-def calculate_day_stage(twinlites, event_time):
-  if twinlites[0] > event_time or event_time > twinlites[-1]:
+def calculate_day_stage(twilight, event_time):
+  if twilight[0] > event_time or event_time > twilight[-1]:
     return 0
-  if twinlites[0] < event_time < twinlites[2] or twinlites[5] < event_time < twinlites[-1]:
+  if twilight[0] < event_time < twilight[2] or twilight[5] < event_time < twilight[-1]:
     return 1
   return 2
 

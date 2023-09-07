@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from pytz import timezone
 from ..services.sat_data import sat_data
 from ..services.helpers import (
-  Topos_xyz, datetime_range, calculate_day_stage, download, ECEF_to_look_angles, get_comment_value, format_epoch, chunks, deg_to_compass, calculate_twinlites, GCRF_to_ITRF, find_events, earthPositions
+  Topos_xyz, datetime_range, calculate_day_stage, download, ECEF_to_look_angles, get_comment_value, format_epoch, chunks, deg_to_compass, calculate_twilight, GCRF_to_ITRF, find_events, earthPositions
 )
 
 sat_data()
@@ -99,8 +99,8 @@ def getTLEPredictedSightings():
     ti1, _ = event[1]
     ti2, _ = event[2]
 
-    twinlites = calculate_twinlites(location, ti1.astimezone(zone), zone)
-    if ti0.astimezone(zone) <= twinlites[2] or ti2.astimezone(zone) >= twinlites[4]:
+    twilight = calculate_twilight(location, ti1.astimezone(zone), zone)
+    if ti0.astimezone(zone) <= twilight[2] or ti2.astimezone(zone) >= twilight[4]:
       maxHeight, _, _ = (iss - location).at(ti1).altaz()
       appears_altitude, appears_azimut, _ = (iss - location).at(ti0).altaz()
       disappears_altitude, disappears_azimut, _ = (iss - location).at(ti2).altaz()
@@ -138,8 +138,8 @@ def getOemNasa():
     ti1 = ts.from_datetime(event['max_elevation_time'].replace(tzinfo=utc))
     ti2 = ts.from_datetime(event['end_time'].replace(tzinfo=utc))
 
-    twinlites = calculate_twinlites(wgs84.latlon(lat, lon), ti1.astimezone(zone), zone)
-    day_stage = calculate_day_stage(twinlites, ti1.astimezone(zone))
+    twilight = calculate_twilight(wgs84.latlon(lat, lon), ti1.astimezone(zone), zone)
+    day_stage = calculate_day_stage(twilight, ti1.astimezone(zone))
     if day_stage == 0 or day_stage == 1:
       item = {
         'date': ti0.astimezone(zone).strftime("%Y-%m-%dT%H:%M:%S.%f%z"),
