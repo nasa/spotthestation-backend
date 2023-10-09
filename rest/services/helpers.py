@@ -36,10 +36,10 @@ def download(url):
       if chunk:
         f.write(chunk)
 
-def get_comment_value(value): 
+def get_comment_value(value):
   return float(value.split("=")[-1])
 
-def format_epoch(value): 
+def format_epoch(value):
   return {
     'date': dt.datetime.strptime(value.find('EPOCH').text, "%Y-%jT%H:%M:%S.%fZ").strftime("%Y-%m-%dT%H:%M:%S.%f"),
     'location': [float(value.find('X').text), float(value.find('Y').text), float(value.find('Z').text)],
@@ -78,11 +78,11 @@ def iauCal2jd(year, month, day, hour=0, min=0, sec=0):
   if month <= 2:
     year = year - 1
     month = month + 12
-  
+
   if year < 0:
     c = -0.75
-  
-  if year > 1582 or (year == 1582 and month > 10) or (year == 1582 and month == 10 and day > 14): 
+
+  if year > 1582 or (year == 1582 and month > 10) or (year == 1582 and month == 10 and day > 14):
     a = trunc(year/100)
     b = 2 - a + floor(a/4)
 
@@ -97,7 +97,7 @@ def iauObl06(date1, date2):
   t = ((date1 - JD_J2000_0) + date2) / DJC
 
   eps0 = (84381.406 + (-46.836769 + (-0.0001831 + (0.00200340 + (-0.000000576-0.0000000434 * t) * t) * t) * t) * t) * DAS2R
-  return eps0 
+  return eps0
 
 def iauPfw06(date1, date2):
   t = ((date1 - JD_J2000_0) + date2) / DJC
@@ -109,7 +109,7 @@ def iauPfw06(date1, date2):
   return gamb, phib, psib, epsa
 
 def iauFal03(t):
-  return ((485868.249036 + t * (1717915923.2178 + t * (31.8792 + t * (0.051635 + t * (-0.00024470))))) % TURNAS) * DAS2R 
+  return ((485868.249036 + t * (1717915923.2178 + t * (31.8792 + t * (0.051635 + t * (-0.00024470))))) % TURNAS) * DAS2R
 
 def iauFaf03(t):
   return ((335779.526232 + t * (1739527262.8478 + t * (-12.7512 + t * (-0.001037 + t * (0.00000417))))) % TURNAS) * DAS2R
@@ -134,7 +134,7 @@ def iauFapa03(t):
 
 def iauNut00a(date1, date2):
   U2R = DAS2R / 1e7
-  
+
   t = ((date1 - JD_J2000_0) + date2) / DJC
   el = iauFal03(t)
   f = iauFaf03(t)
@@ -145,10 +145,10 @@ def iauNut00a(date1, date2):
   carg = cos(arg)
   dp = -3 * sarg
   de = 2 * carg
-  
+
   dpsils = dp * U2R
   depsls = de * U2R
-    
+
   af = (1.627905234 + 8433.466158131 * t) % (2 * pi)
   ad = (5.198466741 + 7771.3771468121 * t) % (2 * pi)
   aom = (2.18243920 - 33.757045 * t) % (2 * pi)
@@ -160,16 +160,16 @@ def iauNut00a(date1, date2):
   carg = cos(arg)
   dp = 3 * sarg
   de = -1 * carg
-  
+
   dpsipl = dp * U2R
   depspl = de * U2R
 
   dpsi = dpsils + dpsipl
   deps = depsls + depspl
-  
+
   return dpsi, deps
 
-def iauNut06a(date1, date2): 
+def iauNut06a(date1, date2):
   t = ((date1 - JD_J2000_0) + date2) / DJC
   fj2 = -2.7774e-6 * t
   dpsi, deps = iauNut00a(date1, date2)
@@ -255,7 +255,7 @@ def iauS06(date1, date2, x, y):
   w3 = w3 + summ(s31, numpy.sin(a)) + summ(s32, numpy.cos(a))
   a = numpy.multiply(numpy.matrix(s4),fundamentalArguments).sum(axis=1).flatten().tolist()
   w4 = w4 + summ(s41, numpy.sin(a)) + summ(s42, numpy.cos(a))
-  
+
   return (w0 + (w1 + (w2 + (w3 + (w4 + w5 * t) * t) * t) * t) * t) * DAS2R - x * y / 2.0
 
 def rem(x, y):
@@ -264,14 +264,14 @@ def rem(x, y):
 def iauEra00(dj1, dj2):
   d1 = min([dj1, dj2])
   d2 = max([dj1, dj2])
-  
+
   t = d1 + (d2 - JD_J2000_0)
   f = (d1 - trunc(d1)) + (d2 - trunc(d2))
 
   theta = rem((f + 0.7790572732640 + 0.00273781191135448 * t) * 2 * pi, (2 * pi))
   if theta < 0:
     theta = theta + 2 * pi
-  
+
   return theta
 
 def iauEors(rnpb, s):
@@ -283,11 +283,11 @@ def iauEors(rnpb, s):
   p = rnpb[0][0] * xs + rnpb[0][1] * ys + rnpb[0][2] * zs
   q = rnpb[1][0] * xs + rnpb[1][1] * ys + rnpb[1][2] * zs
 
-  if p != 0 or q != 0: 
+  if p != 0 or q != 0:
     return (s - atan2(q, p))
   else:
     return s
-  
+
 def iauGst06(uta, utb, tta, ttb, rnpb):
   cip_x = rnpb[2][0]
   cip_y = rnpb[2][1]
@@ -297,7 +297,7 @@ def iauGst06(uta, utb, tta, ttb, rnpb):
   gst = rem(era - eors, 2 * pi)
   if gst < 0:
     gst = gst + 2 * pi
-  
+
   return gst
 
 def iauPom00(xp, yp, sp):
@@ -326,13 +326,13 @@ def invjday(jd):
   if fday < 0:
     fday = fday + 1
     z = z - 1
-  
+
   if z < 2299161:
     a = z
   else:
     alpha = floor((z - 1867216.25) / 36524.25)
     a = z + 1 + alpha - floor(alpha/4)
-  
+
   b = a + 1524
   c = trunc((b - 122.1) / 365.25)
   d = trunc(365.25 * c)
@@ -347,7 +347,7 @@ def invjday(jd):
     year = c - 4716
   else:
     year = c - 4715
-  
+
   hour = abs(day - floor(day))*24
   min = abs(hour - floor(hour))*60
   sec = abs(min - floor(min))*60
@@ -361,7 +361,7 @@ def earthPositions():
   raw_positions_data = []
   with open('EOP-All.txt', 'r') as f:
     raw_positions_data = [line.rstrip() for line in f]
-  
+
   begin_observed = raw_positions_data.index("BEGIN OBSERVED")
   end_observed = raw_positions_data.index("END OBSERVED")
   begin_predicted = raw_positions_data.index("BEGIN PREDICTED")
@@ -386,7 +386,7 @@ def IERS(eop, Mjd_UTC):
   nexteop = eop[i + 1]
   mfme = 1440 * (Mjd_UTC - mjd)
   fixf = mfme/1440
-  
+
   x_pole = preeop[4] + (nexteop[4] - preeop[4]) * fixf
   y_pole = preeop[5] + (nexteop[5] - preeop[5]) * fixf
   UT1_UTC = preeop[6] + (nexteop[6] - preeop[6]) * fixf
@@ -404,7 +404,7 @@ def IERS(eop, Mjd_UTC):
   dy_pole = dy_pole/const_Arcs
 
   return x_pole, y_pole, UT1_UTC, LOD, dpsi, deps, TAI_UTC
-  
+
 def ECI_to_ECEF(MJD_UTC, Y0, Y1, earthPositions):
   x_pole, y_pole, UT1_UTC, LOD, dpsi, deps, TAI_UTC = IERS(earthPositions, MJD_UTC)
   TT_UTC = timeDiffs(UT1_UTC, TAI_UTC)[8]
@@ -543,19 +543,19 @@ def linear_interpolation(data, parts):
       end_date = data[i+1]['date']
       delta_time = (end_date - start_date) / parts
       for j in range(1, parts):
-          
+
           intermediate_location = [
               data[i]['location'][k] + j*(data[i+1]['location'][k] - data[i]['location'][k])/parts
               for k in range(3)
           ]
-          
+
           intermediate_velocity = [
               data[i]['velocity'][k] + j*(data[i+1]['velocity'][k] - data[i]['velocity'][k])/parts
               for k in range(3)
           ]
 
           intermediate_altitude = data[i]['altitude'] + j * (data[i + 1]['altitude'] - data[i]['altitude']) / parts
-          
+
           intermediate_data = {
               'date': start_date + j*delta_time,
               'location': intermediate_location,
@@ -563,6 +563,17 @@ def linear_interpolation(data, parts):
               'altitude': intermediate_altitude,
           }
           interpolated_data.append(intermediate_data)
-  
+
   interpolated_data = [data[0]] + interpolated_data + [data[-1]]
   return interpolated_data
+
+def is_in_shadow(r_sun_eci, r_iss_eci):
+  R_Earth = 6378137.0  # Equatorial radius in meters (6378.137 km)
+
+  # Calculate theta in radians
+  dot_product = numpy.dot(-r_iss_eci, (r_sun_eci - r_iss_eci))
+  norm_r_iss_eci = numpy.linalg.norm(r_iss_eci)
+  norm_r_sun_eci = numpy.linalg.norm(r_sun_eci)
+  theta = numpy.arccos(dot_product / (norm_r_iss_eci * norm_r_sun_eci))
+
+  return theta < numpy.pi / 2 and norm_r_iss_eci * numpy.sin(theta) < R_Earth

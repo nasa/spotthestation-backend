@@ -1,3 +1,4 @@
+import numpy as np
 import xml.etree.ElementTree as ET
 from dotenv import load_dotenv
 from redis import Redis
@@ -14,7 +15,7 @@ from skyfield.toposlib import Topos
 from skyfield.api import utc
 from datetime import datetime, timedelta
 from .services.helpers import (
-    format_epoch, GCRF_to_ITRF, earthPositions, Topos_xyz, linear_interpolation, download
+    format_epoch, GCRF_to_ITRF, earthPositions, Topos_xyz, linear_interpolation, download, is_in_shadow
 )
 
 load_dotenv()
@@ -31,9 +32,12 @@ def get_sat_data():
     raw_epoches = list(map(format_epoch, state_vectors))
     eph = load('de421.bsp')
     earth = eph['earth']
+    sun = eph['sun']
     ts = load.timescale()
 
     epoches = []
+    shadow_intervals = []
+    shadow_start = None
     for i in range(len(raw_epoches) - 1):
         date = datetime.strptime(raw_epoches[i]['date'], "%Y-%m-%dT%H:%M:%S.%f").replace(tzinfo=utc)
 
@@ -65,14 +69,13 @@ def get_sat_data():
             pt = curve.evaluate(t)
             date = (start + timedelta(seconds=j*15))
 
-            r, v = GCRF_to_ITRF(pt, epoches[i]['velocity'], date, earth_positions)
-            t = Topos_xyz(r[0], r[1], r[2])
-
-            epos = earth.at(ts.from_datetime(date)).position.km
-            pos = (earth + Topos(t.latitude.degrees, t.longitude.degrees)).at(ts.from_datetime(date)).position.km
-            er = numpy.sqrt(((pos - epos) ** 2).sum())
-
             if j == 0:
+                r, v = GCRF_to_ITRF(pt, epoches[i]['velocity'], date, earth_positions)
+                t = Topos_xyz(r[0], r[1], r[2])
+
+                epos = earth.at(ts.from_datetime(date)).position.km
+                pos = (earth + Topos(t.latitude.degrees, t.longitude.degrees)).at(ts.from_datetime(date)).position.km
+                er = numpy.sqrt(((pos - epos) ** 2).sum())
                 sat.append({
                     'date': date,
                     'location': r,
@@ -80,14 +83,19 @@ def get_sat_data():
                                       pt[2] * 1000 / AU_M)).distance().km - er
                 })
 
-            interpolated_sat.append({
-                'date': date,
-                'location': r,
-                'altitude': ICRS((pt[0] * 1000 / AU_M, pt[1] * 1000 / AU_M,
-                                  pt[2] * 1000 / AU_M)).distance().km - er
-            })
+            sun_m = earth.at(ts.from_datetime(date)).observe(sun).position.m
+            in_shadow = is_in_shadow(sun_m, np.array([pt[0] * 1000, pt[1] * 1000, pt[2] * 1000]))
+            if in_shadow == True and shadow_start is None:
+                shadow_start = date
 
-    redis.set('sat_data', pickle.dumps(interpolated_sat))
+            if in_shadow == False and shadow_start is not None:
+                shadow_intervals.append([shadow_start.timestamp(), date.timestamp()])
+                shadow_start = None
+
+    if shadow_start is not None:
+        shadow_intervals.append([shadow_start.timestamp(), epoches[-1]['date'].timestamp()])
+
+    redis.set('shadow_intervals', pickle.dumps(shadow_intervals))
     redis.set('sat_data_not_interpolated', pickle.dumps(sat))
     redis.set('sat_data_updated_at', datetime.now(tz=utc).isoformat())
     return interpolated_sat
