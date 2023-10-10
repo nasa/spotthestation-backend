@@ -60,14 +60,14 @@ def get_sat_data():
         start = epoches[i]['date']
         end = epoches[i + 1]['date']
 
-        steps = max(1, int((end - start).total_seconds() // 15))
+        steps = max(1, int((end - start).total_seconds() // 5))
 
         for j in range(steps):
             t0 = i
             t1 = i + 1
             t = t0 + (t1 - t0) * (j / steps)
             pt = curve.evaluate(t)
-            date = (start + timedelta(seconds=j*15))
+            date = (start + timedelta(seconds=j*5))
 
             if j == 0:
                 r, v = GCRF_to_ITRF(pt, epoches[i]['velocity'], date, earth_positions)
