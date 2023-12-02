@@ -4,7 +4,7 @@ FROM python:3.10-slim
 ENV PYTHONUNBUFFERED 1
 ENV FLASK_APP application
 
-RUN apt update && apt install -y less nano curl
+RUN apt update && apt install -y less nano curl procps
 
 # Set the working directory to /fl-orchestrator
 WORKDIR /app
