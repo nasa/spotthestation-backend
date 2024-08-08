@@ -41,8 +41,10 @@ def set_status(value, details=None):
             message = f"❌ Server returned an unexpected status code: {details.status_code}"
         elif value == "invalid_response":
             message = f"❌ Server returned an invalid response: {details} is undefined"
-        elif value == "stale_data":
+        elif value == "stale_data_iss":
             message = f"❌ ISS trajectory data is stale. Last update: {details}"
+        elif value == "stale_data_astronauts":
+            message = f"❌ Astronauts data is stale. Last update: {details}"
 
         redis.set('server_status_updated_at', datetime.now(tz=timezone.utc).isoformat())
         send_slack_message("\nSTS Backend Report:\n" + message)
@@ -57,6 +59,7 @@ def check_health():
         if response.status_code == 200:
             data = response.json()
             sat_data_updated_at = data['sat_data_updated_at']
+            astronauts_updated_at = data['astronauts_updated_at']
 
             if data['health'] != 'healthy':
                 return set_status("invalid_response", "health")
@@ -64,8 +67,14 @@ def check_health():
             if sat_data_updated_at is None:
                 return set_status("invalid_response", "sat_data_updated_at")
 
+            if astronauts_updated_at is None:
+                return set_status("invalid_response", "astronauts_updated_at")
+
             if datetime.now(tz=timezone.utc) - timedelta(hours=3) > datetime.fromisoformat(sat_data_updated_at):
-                return set_status("stale_data", sat_data_updated_at)
+                return set_status("stale_data_iss", sat_data_updated_at)
+
+            if datetime.now(tz=timezone.utc) - timedelta(hours=3) > datetime.fromisoformat(astronauts_updated_at):
+                return set_status("stale_data_astronauts", astronauts_updated_at)
 
             set_status("healthy")
         else:

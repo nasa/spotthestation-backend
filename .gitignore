@@ -19,3 +19,7 @@ build/
 log/*
 celerybeat-schedule
 local_cache.sqlite
+
+de421.bsp
+EOP-All.txt
+ISS.OEM_J2K_EPH.xml
