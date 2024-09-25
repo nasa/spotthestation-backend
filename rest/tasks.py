@@ -107,37 +107,41 @@ def get_sat_data():
     return interpolated_sat
 
 def get_astronauts():
-    url = "https://www.nasa.gov/humans-in-space/astronauts/"
-    response = requests.get(url)
+    try:
+        url = "https://www.nasa.gov/humans-in-space/astronauts/"
+        response = requests.get(url)
 
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.content, 'html.parser')
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
 
-        container = soup.find(class_="hds-meet-the")
-        astronaut_cards = container.find_all(class_='hds-meet-the-card')
-        astronauts = []
+            container = soup.find(class_="hds-meet-the")
+            astronaut_cards = container.find_all(class_='hds-meet-the-card')
+            astronauts = []
 
-        for card in astronaut_cards:
-            image = card.find('img')['src']
-            name = card.find('h3').get_text()
-            title = card.find('p').get_text()
-            link = card.find('a')['href']
+            for card in astronaut_cards:
+                image = card.find('img')['src']
+                name = card.find('h3').get_text()
+                title = card.find('p').get_text()
+                link = card.find('a')['href']
 
-            parsed_url = urlparse(image)
-            existing_params = parse_qs(parsed_url.query)
-            existing_params.update({ 'w': '700', 'h': '700' })
+                parsed_url = urlparse(image)
+                existing_params = parse_qs(parsed_url.query)
+                existing_params.update({ 'w': '700', 'h': '700' })
 
-            encoded_params = urlencode(existing_params, doseq=True)
-            resized_image = urlunparse(parsed_url._replace(query=encoded_params))
+                encoded_params = urlencode(existing_params, doseq=True)
+                resized_image = urlunparse(parsed_url._replace(query=encoded_params))
 
-            astronauts.append({
-                'image': resized_image,
-                'name': name,
-                'title': title,
-                'link': link
-            })
+                astronauts.append({
+                    'image': resized_image,
+                    'name': name,
+                    'title': title,
+                    'link': link
+                })
 
-        redis.set('astronauts', pickle.dumps(astronauts))
-        redis.set('astronauts_updated_at', datetime.now(tz=utc).isoformat())
-    else:
-        print(f"Failed to retrieve the webpage. Status code: {response.status_code}")
+            redis.set('astronauts', pickle.dumps(astronauts))
+            redis.set('astronauts_updated_at', datetime.now(tz=utc).isoformat())
+        else:
+            print(f"Failed to retrieve the webpage. Status code: {response.status_code}")
+    except Exception as e:
+        print(f"Failed to parse the webpage: {e}")
+
