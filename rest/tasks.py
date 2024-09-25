@@ -100,7 +100,9 @@ def get_sat_data():
         shadow_intervals.append([shadow_start.timestamp(), epoches[-1]['date'].timestamp()])
 
     redis.set('shadow_intervals', pickle.dumps(shadow_intervals))
-    redis.set('sat_data_not_interpolated', pickle.dumps(sat))
+    # Save to temporary key to avoid blocking current value
+    redis.set('sat_data_new', pickle.dumps(sat))
+    redis.rename('sat_data_new', 'sat_data_not_interpolated')
     redis.set('sat_data_updated_at', datetime.now(tz=utc).isoformat())
     return interpolated_sat
 
