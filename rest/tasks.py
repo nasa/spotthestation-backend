@@ -145,3 +145,32 @@ def get_astronauts():
     except Exception as e:
         print(f"Failed to parse the webpage: {e}")
 
+
+def get_youtube_livestream_id():
+    api_key = os.getenv('GOOGLE_API_TOKEN')
+    channel_id = os.getenv('YT_CHANNEL_ID')
+    try:
+        url = f"https://www.googleapis.com/youtube/v3/search?part=id,snippet&channelId={channel_id}&type=video&eventType=live&key={api_key}"
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            items = list(reversed(data['items']))
+            video_id = ""
+
+            if len(items) > 0:
+                video_id = items[0]['id']['videoId']
+                for item in items:
+                    if 'international space station' in item['snippet']['title'].lower():
+                        video_id = item['id']['videoId']
+                        break
+
+            redis.set('youtube_livestream_id', pickle.dumps(video_id))
+            redis.set('youtube_livestream_id_updated_at', datetime.now(tz=utc).isoformat())
+            return True
+        else:
+            print(f"Failed to retrieve youtube livestream id. Status code: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"Failed to retrieve youtube livestream id: {e}")
+        return False
+
