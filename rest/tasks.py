@@ -9,6 +9,10 @@ import requests
 from splines import CatmullRom
 from bs4 import BeautifulSoup
 from urllib.parse import urlencode, urlparse, urlunparse, parse_qs
+import boto3
+from botocore import UNSIGNED
+from botocore.config import Config
+import shutil
 
 
 from skyfield.constants import AU_M
@@ -26,14 +30,55 @@ load_dotenv()
 
 redis = Redis.from_url(os.getenv('REDIS_URL'))
 
+def download_prev_trajectory_files():
+    s3 = boto3.client('s3', config=Config(signature_version=UNSIGNED))
+
+    current_date = datetime.today()
+    new_date = current_date - timedelta(weeks=2)
+    formatted_date = new_date.strftime('%Y-%m-%d')
+
+    response = s3.list_objects_v2(
+        Bucket='nasa-public-data',
+        Prefix='iss-coords',
+        StartAfter=f'iss-coords/{formatted_date}'
+    )
+
+    prev_keys = [
+        item['Key']
+        for item in response['Contents']
+        if item['Key'].endswith('ISS_OEM/ISS.OEM_J2K_EPH.xml')
+    ][0:-2]
+
+    return [
+        download(f"https://nasa-public-data.s3.amazonaws.com/{key}", key)
+        for key in prev_keys
+    ]
+
 def get_sat_data():
-    download("https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml")
+    shutil.rmtree("iss-coords", ignore_errors=True)
+
+    prev_files = download_prev_trajectory_files()
+    current_file = download("https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml", "iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml")
+    files = [*prev_files, current_file]
+    files.reverse()
+
     download("http://www.celestrak.com/SpaceData/EOP-All.txt")
 
     earth_positions = earthPositions()
-    result = ET.parse("ISS.OEM_J2K_EPH.xml").getroot().find("oem").find("body").find("segment")
-    state_vectors = result.find("data").findall("stateVector")
-    raw_epoches = list(map(format_epoch, state_vectors))
+
+    last_start_time = None
+    raw_epoches = []
+    for file in files:
+        result = ET.parse(file).getroot().find("oem").find("body").find("segment")
+        file_start_time = result.find("metadata").find("START_TIME").text
+
+        state_vectors = result.find("data").findall("stateVector")
+        if last_start_time is not None:
+            state_vectors = filter(lambda sv: sv.find('EPOCH').text < last_start_time, state_vectors)
+
+        raw_epoches = list(map(format_epoch, state_vectors)) + raw_epoches
+        last_start_time = file_start_time
+
     eph = load('de421.bsp')
     earth = eph['earth']
     sun = eph['sun']

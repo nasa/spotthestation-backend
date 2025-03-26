@@ -12,3 +12,4 @@ requests-cache~=0.9
 skyfield~=1.45
 splines~=0.3.0
 urllib3~=1.26.14
+boto3~=1.37.20

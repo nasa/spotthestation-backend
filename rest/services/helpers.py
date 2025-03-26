@@ -6,6 +6,7 @@ from skyfield import almanac
 from skyfield.api import load, Topos
 from skyfield.earthlib import reverse_terra
 from .constants import omegaEarth, const_Arcs, JD_J2000_0, DJC, DAS2R, TURNAS, s0, s01, s02, s1, s11, s12, s2, s21, s22, s3, s31, s32, s4, s41, s42
+from pathlib import Path
 
 def Topos_xyz(x,y,z):
   lat,lon,e = reverse_terra((x,y,z),gast=0)
@@ -28,13 +29,19 @@ def datetime_range(start, end, delta):
       yield current
       current += delta
 
-def download(url):
+def download(url, name = None):
   get_response = requests.get(url,stream=True)
-  file_name  = url.split("/")[-1]
+  file_name = url.split("/")[-1] if name is None else name
+
+  file_path = Path(file_name)
+  file_path.parent.mkdir(parents=True, exist_ok=True)
+
   with open(file_name, 'wb') as f:
     for chunk in get_response.iter_content(chunk_size=1024):
       if chunk:
         f.write(chunk)
+
+  return file_name
 
 def get_comment_value(value):
   return float(value.split("=")[-1])
