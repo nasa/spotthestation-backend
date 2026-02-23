@@ -1,9 +1,8 @@
 import os
 import logging
-
 from dotenv import load_dotenv
 from flask import Flask, jsonify
-from .routes import tracking, mailer, astronauts, youtube
+from .routes import tracking, mailer, astronauts, youtube, tokens
 from .services.sat_data import last_updated as sat_data_last_updated
 from .services.astronauts import last_updated as astronauts_last_updated
 from .services.youtube import last_updated as youtube_livestream_id_updated_at
@@ -22,11 +21,16 @@ app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
 app.config['MAIL_SENDER'] = os.getenv('MAIL_SENDER')
 app.config['MAIL_RECIPIENTS'] = os.getenv('MAIL_RECIPIENTS')
 app.config['REDIS_URL'] = os.getenv('REDIS_URL')
+app.config['MAPBOX_API_TOKEN'] = os.getenv('MAPBOX_API_TOKEN')
+app.config['GOOGLE_API_TOKEN'] = os.getenv('GOOGLE_API_TOKEN')
+app.config['TIMEZONEDB_API_KEY'] = os.getenv('TIMEZONEDB_API_KEY')
+app.config['TOKENS_VERSION'] = os.getenv('TOKENS_VERSION')
 
 app.register_blueprint(tracking.bp)
 app.register_blueprint(mailer.bp)
 app.register_blueprint(astronauts.bp)
 app.register_blueprint(youtube.bp)
+app.register_blueprint(tokens.bp)
 
 @app.route('/health')
 def health():
