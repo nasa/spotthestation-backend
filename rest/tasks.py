@@ -192,7 +192,7 @@ def get_astronauts():
 
 
 def get_youtube_livestream_id():
-    api_key = os.getenv('GOOGLE_API_TOKEN')
+    api_key = os.getenv('YT_API_TOKEN')
     channel_id = os.getenv('YT_CHANNEL_ID')
     try:
         url = f"https://www.googleapis.com/youtube/v3/search?part=id,snippet&channelId={channel_id}&type=video&eventType=live&key={api_key}"

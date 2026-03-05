@@ -9,9 +9,3 @@ def get_tokens():
         'GOOGLE_API_TOKEN': current_app.config['GOOGLE_API_TOKEN'],
         'TIMEZONEDB_API_KEY': current_app.config['TIMEZONEDB_API_KEY']
     })
-
-@bp.route('/version', methods=['GET'])
-def get_tokens_version():
-    return jsonify({
-        'version': current_app.config['TOKENS_VERSION']
-    })

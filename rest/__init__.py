@@ -24,7 +24,6 @@ app.config['REDIS_URL'] = os.getenv('REDIS_URL')
 app.config['MAPBOX_API_TOKEN'] = os.getenv('MAPBOX_API_TOKEN')
 app.config['GOOGLE_API_TOKEN'] = os.getenv('GOOGLE_API_TOKEN')
 app.config['TIMEZONEDB_API_KEY'] = os.getenv('TIMEZONEDB_API_KEY')
-app.config['TOKENS_VERSION'] = os.getenv('TOKENS_VERSION')
 
 app.register_blueprint(tracking.bp)
 app.register_blueprint(mailer.bp)
