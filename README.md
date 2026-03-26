@@ -25,6 +25,10 @@ Before you begin, ensure you have the following prerequisites installed on your 
     ```
     cp .env.example .env
     ```
+4. In `.env` file, provide values for the following variables:
+   - `GOOGLE_API_TOKEN` - your public Google Maps API token. Learn how to obtain it [here](https://developers.google.com/maps/documentation/javascript/get-api-key).
+   - `MAPBOX_API_TOKEN` - your public Mapbox token. Learn how to obtain it [here](#how-to-obtain-mapbox-token).
+   - `TIMEZONEDB_API_KEY` - your public TimezoneDB API key. Learn how to obtain it [here](https://timezonedb.com/api).
 5. Install project dependencies:
     ```
     pip install -r requirements.txt
@@ -126,3 +130,10 @@ This is a script that configures periodic task execution.
     mediagis/nominatim:4.3
    ```
    Nominatim warms up database caches upon startup, which takes about 3 minutes. The service is not accessible during this process.
+
+## How to obtain Mapbox token?
+1. Create a Mapbox account [here](https://account.mapbox.com/auth/signup/)
+2. Go to [Access tokens page](https://account.mapbox.com/access-tokens/)
+3. Click `Create a token`
+4. Name your token, selected all Public scopes checkboxes. Make sure to avoid any secret scopes because this API key will be shared with the mobile app users.
+5. Click `Create token` and copy your token. It must start with `pk.` prefix. If it starts with `sk.`, that means you accidentally created a secret token which should be avoided for security reasons.
