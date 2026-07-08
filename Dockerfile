@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 # Send Python outputs directly to the terminal
 ENV PYTHONUNBUFFERED 1

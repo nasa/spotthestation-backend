@@ -1,7 +1,7 @@
 import requests_cache
 from dateutil.parser import isoparse
+from flask import Blueprint, current_app, jsonify, request
 
-from flask import Blueprint, jsonify, request, current_app
 from ..services.sat_data import sat_data
 
 sat_data()
@@ -9,7 +9,7 @@ requests_cache.install_cache(cache_name='local_cache', expire_after=3600)
 bp = Blueprint('tracking', __name__, url_prefix='/tracking')
 
 @bp.route('/iss-data-raw', methods=['POST'])
-def getISSDataRaw():
+def get_iss_data_raw():
   current_app.logger.error('**********')
   current_app.logger.error(request.json)
 
@@ -28,7 +28,7 @@ def getISSDataRaw():
   return jsonify(res)
 
 @bp.route('/iss-data', methods=['POST'])
-def getISSData():
+def get_iss_data():
   current_app.logger.error('**********')
   current_app.logger.error(request.json)
 

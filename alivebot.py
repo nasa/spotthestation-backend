@@ -1,7 +1,8 @@
-import requests
 import os
+from datetime import UTC, datetime, timedelta
+
+import requests
 from dotenv import load_dotenv
-from datetime import datetime, timedelta, timezone
 from redis import Redis
 
 load_dotenv()
@@ -25,10 +26,10 @@ def set_status(value, details=None):
     status = None if status is None else status.decode('ascii')
 
     status_updated_at = redis.get('server_status_updated_at')
-    noon = datetime.now(tz=timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
+    noon = datetime.now(tz=UTC).replace(hour=12, minute=0, second=0, microsecond=0)
     is_noon = (
         status_updated_at is not None
-        and datetime.fromisoformat(status_updated_at.decode('ascii')) < noon <= datetime.now(tz=timezone.utc)
+        and datetime.fromisoformat(status_updated_at.decode('ascii')) < noon <= datetime.now(tz=UTC)
     )
 
     if value != status or is_noon:
@@ -48,7 +49,7 @@ def set_status(value, details=None):
         elif value == "stale_data_youtube_livestream_id":
             message = f"❌ Youtube livestream id is stale. Last update: {details}"
 
-        redis.set('server_status_updated_at', datetime.now(tz=timezone.utc).isoformat())
+        redis.set('server_status_updated_at', datetime.now(tz=UTC).isoformat())
         send_slack_message("\nSTS Backend Report:\n" + message)
 
     redis.set('server_status', value)
@@ -76,13 +77,13 @@ def check_health():
             if youtube_livestream_id_updated_at is None:
                 return set_status("invalid_response", "youtube_livestream_id_updated_at")
 
-            if datetime.now(tz=timezone.utc) - timedelta(hours=3) > datetime.fromisoformat(sat_data_updated_at):
+            if datetime.now(tz=UTC) - timedelta(hours=3) > datetime.fromisoformat(sat_data_updated_at):
                 return set_status("stale_data_iss", sat_data_updated_at)
 
-            if datetime.now(tz=timezone.utc) - timedelta(hours=3) > datetime.fromisoformat(astronauts_updated_at):
+            if datetime.now(tz=UTC) - timedelta(hours=3) > datetime.fromisoformat(astronauts_updated_at):
                 return set_status("stale_data_astronauts", astronauts_updated_at)
 
-            if datetime.now(tz=timezone.utc) - timedelta(hours=3) > datetime.fromisoformat(youtube_livestream_id_updated_at):
+            if datetime.now(tz=UTC) - timedelta(hours=3) > datetime.fromisoformat(youtube_livestream_id_updated_at):
                 return set_status("stale_data_youtube_livestream_id", youtube_livestream_id_updated_at)
 
             set_status("healthy")

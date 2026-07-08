@@ -1,6 +1,6 @@
 import requests_cache
-
 from flask import Blueprint, jsonify
+
 from ..services.youtube import youtube_livestream_id
 
 youtube_livestream_id()

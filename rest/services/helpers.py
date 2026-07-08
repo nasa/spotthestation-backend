@@ -1,14 +1,39 @@
-from math import sin, cos, pi, floor, trunc, atan2, sqrt, asin, radians, degrees, atan
-import numpy
-import requests
 import datetime as dt
-from skyfield import almanac
-from skyfield.api import load, Topos
-from skyfield.earthlib import reverse_terra
-from .constants import omegaEarth, const_Arcs, JD_J2000_0, DJC, DAS2R, TURNAS, s0, s01, s02, s1, s11, s12, s2, s21, s22, s3, s31, s32, s4, s41, s42
+from math import asin, atan, atan2, cos, degrees, floor, pi, radians, sin, sqrt, trunc
 from pathlib import Path
 
-def Topos_xyz(x,y,z):
+import numpy
+import requests
+from skyfield import almanac
+from skyfield.api import Topos, load
+from skyfield.earthlib import reverse_terra
+
+from .constants import (
+  DAS2R,
+  DJC,
+  JD_J2000_0,
+  TURNAS,
+  const_arcs,
+  omega_earth,
+  s0,
+  s01,
+  s02,
+  s1,
+  s2,
+  s3,
+  s4,
+  s11,
+  s12,
+  s21,
+  s22,
+  s31,
+  s32,
+  s41,
+  s42,
+)
+
+
+def topos_xyz(x,y,z):
   lat,lon,e = reverse_terra((x,y,z),gast=0)
   return Topos(latitude_degrees=numpy.rad2deg(lat), longitude_degrees=numpy.rad2deg(lon), elevation_m=e)
 
@@ -66,7 +91,7 @@ def calculate_twilight(bluffton, now, zone):
   times, events = almanac.find_discrete(t0, t1, f)
 
   res = []
-  for t, _ in zip(times, events):
+  for t, _ in zip(times, events, strict=False):
     res.append(t.astimezone(zone))
 
   return res
@@ -314,7 +339,7 @@ def iauSp00(date1, date2):
   t = ((date1 - JD_J2000_0) + date2) / DJC
   return -47e-6 * t * DAS2R
 
-def timeDiffs(UT1_UTC, TAI_UTC):
+def time_diffs(UT1_UTC, TAI_UTC):
   TT_TAI = 32.184
   GPS_TAI = -19.0
   TT_GPS = TT_TAI - GPS_TAI
@@ -345,15 +370,9 @@ def invjday(jd):
   d = trunc(365.25 * c)
   e = trunc((b-d) / 30.6001)
   day = b - d - trunc(30.6001 * e) + fday
-  if e < 14:
-    month = e - 1
-  else:
-    month = e - 13
+  month = e - 1 if e < 14 else e - 13
 
-  if month > 2:
-    year = c - 4716
-  else:
-    year = c - 4715
+  year = c - 4716 if month > 2 else c - 4715
 
   hour = abs(day - floor(day))*24
   min = abs(hour - floor(hour))*60
@@ -364,9 +383,9 @@ def invjday(jd):
 
   return year, month, day, hour, min, sec
 
-def earthPositions():
+def get_earth_positions():
   raw_positions_data = []
-  with open('EOP-All.txt', 'r') as f:
+  with open('EOP-All.txt') as f:
     raw_positions_data = [line.rstrip() for line in f]
 
   begin_observed = raw_positions_data.index("BEGIN OBSERVED")
@@ -377,7 +396,7 @@ def earthPositions():
   def split(value):
     res = value.split(" ")
     filtered = filter(lambda value: value != "", res)
-    return list(map(lambda value: float(value.strip()), filtered))
+    return [float(value.strip()) for value in filtered]
 
   return list(map(split, raw_positions_data[begin_observed + 1:end_observed - 1:] + raw_positions_data[begin_predicted + 1:end_predicted - 1:]))
 
@@ -403,18 +422,18 @@ def IERS(eop, Mjd_UTC):
   dx_pole = preeop[10] + (nexteop[10] - preeop[10]) * fixf
   dy_pole = preeop[11] + (nexteop[11] - preeop[11]) * fixf
   TAI_UTC = preeop[12]
-  x_pole = x_pole/const_Arcs
-  y_pole = y_pole/const_Arcs
-  dpsi = dpsi/const_Arcs
-  deps = deps/const_Arcs
-  dx_pole = dx_pole/const_Arcs
-  dy_pole = dy_pole/const_Arcs
+  x_pole = x_pole/const_arcs
+  y_pole = y_pole/const_arcs
+  dpsi = dpsi/const_arcs
+  deps = deps/const_arcs
+  dx_pole = dx_pole/const_arcs
+  dy_pole = dy_pole/const_arcs
 
   return x_pole, y_pole, UT1_UTC, LOD, dpsi, deps, TAI_UTC
 
 def ECI_to_ECEF(MJD_UTC, Y0, Y1, earthPositions):
   x_pole, y_pole, UT1_UTC, LOD, dpsi, deps, TAI_UTC = IERS(earthPositions, MJD_UTC)
-  TT_UTC = timeDiffs(UT1_UTC, TAI_UTC)[8]
+  TT_UTC = time_diffs(UT1_UTC, TAI_UTC)[8]
   year, month, day, hour, min, sec = invjday(MJD_UTC + 2400000.5)
   DJMJD0, DATE  = iauCal2jd(year, month, day)
   TIME = (60 * (60 * hour + min) + sec)/86400
@@ -427,7 +446,7 @@ def ECI_to_ECEF(MJD_UTC, Y0, Y1, earthPositions):
   PMM = iauPom00(x_pole, y_pole, iauSp00(DJMJD0, TT))
   S = numpy.matrix([[0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
 
-  omega = omegaEarth - 8.43994809e-10 * LOD
+  omega = omega_earth - 8.43994809e-10 * LOD
 
   dTheta = numpy.multiply(omega, S@theta)
   U = PMM@theta@NPB
@@ -571,7 +590,7 @@ def linear_interpolation(data, parts):
           }
           interpolated_data.append(intermediate_data)
 
-  interpolated_data = [data[0]] + interpolated_data + [data[-1]]
+  interpolated_data = [data[0], *interpolated_data, data[-1]]
   return interpolated_data
 
 def is_in_shadow(r_sun_eci, r_iss_eci):

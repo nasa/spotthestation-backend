@@ -1,4 +1,4 @@
-from flask import current_app, jsonify, Blueprint
+from flask import Blueprint, current_app, jsonify
 
 bp = Blueprint('tokens', __name__, url_prefix='/tokens')
 

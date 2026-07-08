@@ -1,6 +1,6 @@
 import requests_cache
-
 from flask import Blueprint, jsonify
+
 from ..services.astronauts import astronauts
 
 astronauts()

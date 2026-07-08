@@ -1,8 +1,10 @@
 import os
 import pickle
 from datetime import datetime
+
 from redis import Redis
 from skyfield.api import utc
+
 from ..tasks import get_youtube_livestream_id
 
 redis = Redis.from_url(os.getenv('REDIS_URL'))

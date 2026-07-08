@@ -1,29 +1,32 @@
-import numpy as np
-import xml.etree.ElementTree as ET
-from dotenv import load_dotenv
-from redis import Redis
 import os
 import pickle
-import numpy
-import requests
-from splines import CatmullRom
-from bs4 import BeautifulSoup
-from urllib.parse import urlencode, urlparse, urlunparse, parse_qs
+import shutil
+import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
 import boto3
+import numpy
+import numpy as np
+import requests
 from botocore import UNSIGNED
 from botocore.config import Config
-import shutil
-
-
+from bs4 import BeautifulSoup
+from dotenv import load_dotenv
+from redis import Redis
+from skyfield.api import load, utc
 from skyfield.constants import AU_M
 from skyfield.positionlib import ICRS
-from skyfield.api import load
 from skyfield.toposlib import Topos
+from splines import CatmullRom
 
-from skyfield.api import utc
-from datetime import datetime, timedelta
 from .services.helpers import (
-    format_epoch, GCRF_to_ITRF, earthPositions, Topos_xyz, linear_interpolation, download, is_in_shadow
+    GCRF_to_ITRF,
+    download,
+    format_epoch,
+    get_earth_positions,
+    is_in_shadow,
+    topos_xyz,
 )
 
 load_dotenv()
@@ -64,7 +67,7 @@ def get_sat_data():
 
     download("http://www.celestrak.com/SpaceData/EOP-All.txt")
 
-    earth_positions = earthPositions()
+    earth_positions = get_earth_positions()
 
     last_start_time = None
     raw_epoches = []
@@ -119,8 +122,8 @@ def get_sat_data():
             date = (start + timedelta(seconds=j*5))
 
             if j == 0:
-                r, v = GCRF_to_ITRF(pt, epoches[i]['velocity'], date, earth_positions)
-                t = Topos_xyz(r[0], r[1], r[2])
+                r, _v = GCRF_to_ITRF(pt, epoches[i]['velocity'], date, earth_positions)
+                t = topos_xyz(r[0], r[1], r[2])
 
                 epos = earth.at(ts.from_datetime(date)).position.km
                 pos = (earth + Topos(t.latitude.degrees, t.longitude.degrees)).at(ts.from_datetime(date)).position.km
@@ -134,10 +137,10 @@ def get_sat_data():
 
             sun_m = earth.at(ts.from_datetime(date)).observe(sun).position.m
             in_shadow = is_in_shadow(sun_m, np.array([pt[0] * 1000, pt[1] * 1000, pt[2] * 1000]))
-            if in_shadow == True and shadow_start is None:
+            if in_shadow and shadow_start is None:
                 shadow_start = date
 
-            if in_shadow == False and shadow_start is not None:
+            if not in_shadow and shadow_start is not None:
                 shadow_intervals.append([shadow_start.timestamp(), date.timestamp()])
                 shadow_start = None
 

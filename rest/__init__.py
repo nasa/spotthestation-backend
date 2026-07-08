@@ -1,12 +1,13 @@
-import os
 import logging
+import os
+
 from dotenv import load_dotenv
 from flask import Flask, jsonify
-from .routes import tracking, mailer, astronauts, youtube, tokens
-from .services.sat_data import last_updated as sat_data_last_updated
+
+from .routes import astronauts, mailer, tokens, tracking, youtube
 from .services.astronauts import last_updated as astronauts_last_updated
+from .services.sat_data import last_updated as sat_data_last_updated
 from .services.youtube import last_updated as youtube_livestream_id_updated_at
-from .services.youtube import youtube_livestream_id
 
 load_dotenv()
 
