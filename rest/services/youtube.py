@@ -5,6 +5,7 @@ from datetime import datetime
 from redis import Redis
 from skyfield.api import utc
 
+from ..config import calculate_data_on_boot
 from ..tasks import get_youtube_livestream_id
 
 redis = Redis.from_url(os.getenv('REDIS_URL'))
@@ -16,15 +17,13 @@ def youtube_livestream_id():
     updated_at = redis.get('youtube_livestream_id_updated_at')
     if updated_at is not None:
         redis_updated_at = datetime.fromisoformat(updated_at.decode('ascii'))
-        print(redis_updated_at)
-        print(youtube_livestream_id_cache_updated_at)
         if youtube_livestream_id_cache_updated_at is None or redis_updated_at > youtube_livestream_id_cache_updated_at:
             data = redis.get('youtube_livestream_id')
             if data is not None:
                 youtube_livestream_id_cache = pickle.loads(data)
                 youtube_livestream_id_cache_updated_at = datetime.now(tz=utc)
 
-    if youtube_livestream_id_cache is None:
+    if youtube_livestream_id_cache is None and calculate_data_on_boot():
         result = get_youtube_livestream_id()
         if result is True:
             return youtube_livestream_id()

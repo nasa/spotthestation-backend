@@ -18,7 +18,8 @@ dependencies = [
     "skyfield~=1.45",
     "splines~=0.3.0",
     "urllib3~=2.7.0",
-    "boto3~=1.37.20"
+    "boto3~=1.37.20",
+    "gunicorn>=26.0.0",
 ]
 
 [project.optional-dependencies]

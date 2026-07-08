@@ -5,6 +5,7 @@ from datetime import datetime
 from redis import Redis
 from skyfield.api import utc
 
+from ..config import calculate_data_on_boot
 from ..tasks import get_astronauts
 
 redis = Redis.from_url(os.getenv('REDIS_URL'))
@@ -16,15 +17,13 @@ def astronauts():
     updated_at = redis.get('astronauts_updated_at')
     if updated_at is not None:
         redis_updated_at = datetime.fromisoformat(updated_at.decode('ascii'))
-        print(redis_updated_at)
-        print(astronauts_cache_updated_at)
         if astronauts_cache_updated_at is None or redis_updated_at > astronauts_cache_updated_at:
             data = redis.get('astronauts')
             if data is not None:
                 astronauts_cache = pickle.loads(data)
                 astronauts_cache_updated_at = datetime.now(tz=utc)
 
-    if astronauts_cache is None:
+    if astronauts_cache is None and calculate_data_on_boot():
         get_astronauts()
         return astronauts()
 

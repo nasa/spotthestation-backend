@@ -5,6 +5,7 @@ from datetime import datetime
 from redis import Redis
 from skyfield.api import utc
 
+from ..config import calculate_data_on_boot
 from ..tasks import get_sat_data
 
 redis = Redis.from_url(os.getenv('REDIS_URL'))
@@ -26,8 +27,10 @@ def sat_data():
         sat_data_cache_updated_at = datetime.now(tz=utc)
 
   if sat_data_not_interpolated_cache is None:
-    get_sat_data()
-    return sat_data()
+    if calculate_data_on_boot():
+      get_sat_data()
+      return sat_data()
+    return { "points": [], "shadow_intervals": [] }
 
   return {
     "points": sat_data_not_interpolated_cache,

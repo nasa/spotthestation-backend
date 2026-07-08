@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy
 import requests
+import requests_cache
 from skyfield import almanac
 from skyfield.api import Topos, load
 from skyfield.earthlib import reverse_terra
@@ -55,16 +56,17 @@ def datetime_range(start, end, delta):
       current += delta
 
 def download(url, name = None):
-  get_response = requests.get(url,stream=True)
   file_name = url.split("/")[-1] if name is None else name
 
   file_path = Path(file_name)
   file_path.parent.mkdir(parents=True, exist_ok=True)
 
-  with open(file_name, 'wb') as f:
-    for chunk in get_response.iter_content(chunk_size=1024):
-      if chunk:
-        f.write(chunk)
+  with requests_cache.disabled(), requests.get(url, stream=True) as get_response:
+    get_response.raise_for_status()
+    with open(file_name, 'wb') as f:
+      for chunk in get_response.iter_content(chunk_size=1024):
+        if chunk:
+          f.write(chunk)
 
   return file_name
 
