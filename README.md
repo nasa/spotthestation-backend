@@ -9,41 +9,28 @@ This is a Python web application built using the Flask framework. This README wi
 Before you begin, ensure you have the following prerequisites installed on your system:
 
 - [Python 3.x](https://www.python.org/downloads/)
-- pip (Python Package Manager): You should have pip installed with Python by default.
+- [uv](https://docs.astral.sh/uv/) for dependency management
 - [Redis](https://redis.io/)
 ### Installation
 
-1. Create a virtual environment to isolate project dependencies:
-   ```
-   python -m venv venv
-   ```
-2. Activate the virtual environment:
-   ```
-   source venv/bin/activate
-   ```
-3. Copy sample env file:
+1. Copy sample env file:
     ```
     cp .env.example .env
     ```
-4. In `.env` file, provide values for the following variables:
+2. In `.env` file, provide values for the following variables:
    - `GOOGLE_API_TOKEN` - your public Google Maps API token. Learn how to obtain it [here](https://developers.google.com/maps/documentation/javascript/get-api-key).
    - `MAPBOX_API_TOKEN` - your public Mapbox token. Learn how to obtain it [here](#how-to-obtain-mapbox-token).
    - `TIMEZONEDB_API_KEY` - your public TimezoneDB API key. Learn how to obtain it [here](https://timezonedb.com/api).
-5. Install project dependencies:
+3. Install project dependencies:
     ```
-    pip install -r requirements.txt
+    uv sync
     ```
 ### Starting server
 Run the following command:
 ```
-python application.py
+uv run python application.py
 ```
-Note that it can take a few minutes to start server for the first time. This is because it needs to download and process ISS trajectory data. 
-
-Optionally, you can start periodic job that will update ISS trajectory data every hour:
-```
-celery -A tasks worker -B
-```
+Note that it can take a few minutes to start server for the first time. This is because it needs to download and process ISS trajectory data.
 
 ## Project Structure
 The project structure is organized as follows:
@@ -56,11 +43,11 @@ nasa-iss-backend/
 │   ├── services
 │   └── tasks.py
 │
-├── venv/  (Virtual Environment)
+├── .venv/  (Virtual Environment)
 │
 ├── .env
 ├── README.md
-├── requirements.txt
+├── pyproject.toml
 ├── alivebot.py
 ├── application.py
 └── tasks.py
