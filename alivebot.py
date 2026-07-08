@@ -5,7 +5,10 @@ import requests
 from dotenv import load_dotenv
 from redis import Redis
 
+from rest.sentry import init_sentry
+
 load_dotenv()
+init_sentry()
 
 redis = Redis.from_url(os.getenv("REDIS_URL"))
 slack_webhook_url = os.getenv("SLACK_WEBHOOK_URL")

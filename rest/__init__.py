@@ -5,11 +5,13 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify
 
 from .routes import astronauts, mailer, tokens, tracking, youtube
+from .sentry import init_sentry
 from .services.astronauts import last_updated as astronauts_last_updated
 from .services.sat_data import last_updated as sat_data_last_updated
 from .services.youtube import last_updated as youtube_livestream_id_updated_at
 
 load_dotenv()
+init_sentry()
 
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
