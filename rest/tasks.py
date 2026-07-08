@@ -31,25 +31,26 @@ from .services.helpers import (
 
 load_dotenv()
 
-redis = Redis.from_url(os.getenv('REDIS_URL'))
+redis = Redis.from_url(os.getenv("REDIS_URL"))
+
 
 def download_prev_trajectory_files():
-    s3 = boto3.client('s3', config=Config(signature_version=UNSIGNED))
+    s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))
 
     current_date = datetime.today()
     new_date = current_date - timedelta(weeks=2)
-    formatted_date = new_date.strftime('%Y-%m-%d')
+    formatted_date = new_date.strftime("%Y-%m-%d")
 
     response = s3.list_objects_v2(
-        Bucket='nasa-public-data',
-        Prefix='iss-coords',
-        StartAfter=f'iss-coords/{formatted_date}'
+        Bucket="nasa-public-data",
+        Prefix="iss-coords",
+        StartAfter=f"iss-coords/{formatted_date}",
     )
 
     prev_keys = [
-        item['Key']
-        for item in response['Contents']
-        if item['Key'].endswith('ISS_OEM/ISS.OEM_J2K_EPH.xml')
+        item["Key"]
+        for item in response["Contents"]
+        if item["Key"].endswith("ISS_OEM/ISS.OEM_J2K_EPH.xml")
     ][0:-2]
 
     return [
@@ -57,11 +58,15 @@ def download_prev_trajectory_files():
         for key in prev_keys
     ]
 
+
 def get_sat_data():
     shutil.rmtree("iss-coords", ignore_errors=True)
 
     prev_files = download_prev_trajectory_files()
-    current_file = download("https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml", "iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml")
+    current_file = download(
+        "https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml",
+        "iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml",
+    )
     files = [*prev_files, current_file]
     files.reverse()
 
@@ -77,40 +82,48 @@ def get_sat_data():
 
         state_vectors = result.find("data").findall("stateVector")
         if last_start_time is not None:
-            state_vectors = filter(lambda sv: sv.find('EPOCH').text < last_start_time, state_vectors)
+            state_vectors = filter(
+                lambda sv: sv.find("EPOCH").text < last_start_time, state_vectors
+            )
 
         raw_epoches = list(map(format_epoch, state_vectors)) + raw_epoches
         last_start_time = file_start_time
 
-    eph = load('de421.bsp')
-    earth = eph['earth']
-    sun = eph['sun']
+    eph = load("de421.bsp")
+    earth = eph["earth"]
+    sun = eph["sun"]
     ts = load.timescale()
 
     epoches = []
     shadow_intervals = []
     shadow_start = None
     for i in range(len(raw_epoches) - 1):
-        date = datetime.strptime(raw_epoches[i]['date'], "%Y-%m-%dT%H:%M:%S.%f").replace(tzinfo=utc)
+        date = datetime.strptime(
+            raw_epoches[i]["date"], "%Y-%m-%dT%H:%M:%S.%f"
+        ).replace(tzinfo=utc)
 
-        if len(epoches) == 0 or (date - epoches[-1]['date']).total_seconds() >= 60 * 4:
-            epoches.append({
-                'date': date,
-                'location': raw_epoches[i]['location'],
-                'velocity': raw_epoches[i]['velocity']
-            })
+        if len(epoches) == 0 or (date - epoches[-1]["date"]).total_seconds() >= 60 * 4:
+            epoches.append(
+                {
+                    "date": date,
+                    "location": raw_epoches[i]["location"],
+                    "velocity": raw_epoches[i]["velocity"],
+                }
+            )
 
     spline_points = []
     for epoch in epoches:
-        spline_points.append((epoch['location'][0], epoch['location'][1], epoch['location'][2]))
+        spline_points.append(
+            (epoch["location"][0], epoch["location"][1], epoch["location"][2])
+        )
 
     curve = CatmullRom(spline_points)
     sat = []
     interpolated_sat = []
 
     for i in range(len(epoches) - 1):
-        start = epoches[i]['date']
-        end = epoches[i + 1]['date']
+        start = epoches[i]["date"]
+        end = epoches[i + 1]["date"]
 
         steps = max(1, int((end - start).total_seconds() // 5))
 
@@ -119,24 +132,40 @@ def get_sat_data():
             t1 = i + 1
             t = t0 + (t1 - t0) * (j / steps)
             pt = curve.evaluate(t)
-            date = (start + timedelta(seconds=j*5))
+            date = start + timedelta(seconds=j * 5)
 
             if j == 0:
-                r, _v = GCRF_to_ITRF(pt, epoches[i]['velocity'], date, earth_positions)
+                r, _v = GCRF_to_ITRF(pt, epoches[i]["velocity"], date, earth_positions)
                 t = topos_xyz(r[0], r[1], r[2])
 
                 epos = earth.at(ts.from_datetime(date)).position.km
-                pos = (earth + Topos(t.latitude.degrees, t.longitude.degrees)).at(ts.from_datetime(date)).position.km
+                pos = (
+                    (earth + Topos(t.latitude.degrees, t.longitude.degrees))
+                    .at(ts.from_datetime(date))
+                    .position.km
+                )
                 er = numpy.sqrt(((pos - epos) ** 2).sum())
-                sat.append({
-                    'date': date,
-                    'location': r,
-                    'altitude': ICRS((pt[0] * 1000 / AU_M, pt[1] * 1000 / AU_M,
-                                      pt[2] * 1000 / AU_M)).distance().km - er
-                })
+                sat.append(
+                    {
+                        "date": date,
+                        "location": r,
+                        "altitude": ICRS(
+                            (
+                                pt[0] * 1000 / AU_M,
+                                pt[1] * 1000 / AU_M,
+                                pt[2] * 1000 / AU_M,
+                            )
+                        )
+                        .distance()
+                        .km
+                        - er,
+                    }
+                )
 
             sun_m = earth.at(ts.from_datetime(date)).observe(sun).position.m
-            in_shadow = is_in_shadow(sun_m, np.array([pt[0] * 1000, pt[1] * 1000, pt[2] * 1000]))
+            in_shadow = is_in_shadow(
+                sun_m, np.array([pt[0] * 1000, pt[1] * 1000, pt[2] * 1000])
+            )
             if in_shadow and shadow_start is None:
                 shadow_start = date
 
@@ -145,14 +174,17 @@ def get_sat_data():
                 shadow_start = None
 
     if shadow_start is not None:
-        shadow_intervals.append([shadow_start.timestamp(), epoches[-1]['date'].timestamp()])
+        shadow_intervals.append(
+            [shadow_start.timestamp(), epoches[-1]["date"].timestamp()]
+        )
 
-    redis.set('shadow_intervals', pickle.dumps(shadow_intervals))
+    redis.set("shadow_intervals", pickle.dumps(shadow_intervals))
     # Save to temporary key to avoid blocking current value
-    redis.set('sat_data_new', pickle.dumps(sat))
-    redis.rename('sat_data_new', 'sat_data_not_interpolated')
-    redis.set('sat_data_updated_at', datetime.now(tz=utc).isoformat())
+    redis.set("sat_data_new", pickle.dumps(sat))
+    redis.rename("sat_data_new", "sat_data_not_interpolated")
+    redis.set("sat_data_updated_at", datetime.now(tz=utc).isoformat())
     return interpolated_sat
+
 
 def get_astronauts():
     try:
@@ -160,65 +192,70 @@ def get_astronauts():
         response = requests.get(url)
 
         if response.status_code == 200:
-            soup = BeautifulSoup(response.content, 'html.parser')
+            soup = BeautifulSoup(response.content, "html.parser")
 
             container = soup.find(class_="hds-meet-the")
-            astronaut_cards = container.find_all(class_='hds-meet-the-card')
+            astronaut_cards = container.find_all(class_="hds-meet-the-card")
             astronauts = []
 
             for card in astronaut_cards:
-                image = card.find('img')['src']
-                name = card.find('h3').get_text()
-                title = card.find('p').get_text()
-                link = card.find('a')['href']
+                image = card.find("img")["src"]
+                name = card.find("h3").get_text()
+                title = card.find("p").get_text()
+                link = card.find("a")["href"]
 
                 parsed_url = urlparse(image)
                 existing_params = parse_qs(parsed_url.query)
-                existing_params.update({ 'w': '700', 'h': '700' })
+                existing_params.update({"w": "700", "h": "700"})
 
                 encoded_params = urlencode(existing_params, doseq=True)
                 resized_image = urlunparse(parsed_url._replace(query=encoded_params))
 
-                astronauts.append({
-                    'image': resized_image,
-                    'name': name,
-                    'title': title,
-                    'link': link
-                })
+                astronauts.append(
+                    {"image": resized_image, "name": name, "title": title, "link": link}
+                )
 
-            redis.set('astronauts', pickle.dumps(astronauts))
-            redis.set('astronauts_updated_at', datetime.now(tz=utc).isoformat())
+            redis.set("astronauts", pickle.dumps(astronauts))
+            redis.set("astronauts_updated_at", datetime.now(tz=utc).isoformat())
         else:
-            print(f"Failed to retrieve the webpage. Status code: {response.status_code}")
+            print(
+                f"Failed to retrieve the webpage. Status code: {response.status_code}"
+            )
     except Exception as e:
         print(f"Failed to parse the webpage: {e}")
 
 
 def get_youtube_livestream_id():
-    api_key = os.getenv('YT_API_TOKEN')
-    channel_id = os.getenv('YT_CHANNEL_ID')
+    api_key = os.getenv("YT_API_TOKEN")
+    channel_id = os.getenv("YT_CHANNEL_ID")
     try:
         url = f"https://www.googleapis.com/youtube/v3/search?part=id,snippet&channelId={channel_id}&type=video&eventType=live&key={api_key}"
         response = requests.get(url)
         if response.status_code == 200:
             data = response.json()
-            items = list(reversed(data['items']))
+            items = list(reversed(data["items"]))
             video_id = ""
 
             if len(items) > 0:
-                video_id = items[0]['id']['videoId']
+                video_id = items[0]["id"]["videoId"]
                 for item in items:
-                    if 'international space station' in item['snippet']['title'].lower():
-                        video_id = item['id']['videoId']
+                    if (
+                        "international space station"
+                        in item["snippet"]["title"].lower()
+                    ):
+                        video_id = item["id"]["videoId"]
                         break
 
-            redis.set('youtube_livestream_id', pickle.dumps(video_id))
-            redis.set('youtube_livestream_id_updated_at', datetime.now(tz=utc).isoformat())
+            redis.set("youtube_livestream_id", pickle.dumps(video_id))
+            redis.set(
+                "youtube_livestream_id_updated_at", datetime.now(tz=utc).isoformat()
+            )
             return True
         else:
-            print(f"Failed to retrieve youtube livestream id. Status code: {response.status_code}")
+            print(
+                f"Failed to retrieve youtube livestream id. Status code: {response.status_code}"
+            )
             return False
     except Exception as e:
         print(f"Failed to retrieve youtube livestream id: {e}")
         return False
-

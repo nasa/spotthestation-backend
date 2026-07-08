@@ -14,17 +14,17 @@ load_dotenv()
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
 
-app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')
-app.config['MAIL_PORT'] = os.getenv('MAIL_PORT')
-app.config['MAIL_USE_SSL'] = True
-app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
-app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
-app.config['MAIL_SENDER'] = os.getenv('MAIL_SENDER')
-app.config['MAIL_RECIPIENTS'] = os.getenv('MAIL_RECIPIENTS')
-app.config['REDIS_URL'] = os.getenv('REDIS_URL')
-app.config['MAPBOX_API_TOKEN'] = os.getenv('MAPBOX_API_TOKEN')
-app.config['GOOGLE_API_TOKEN'] = os.getenv('GOOGLE_API_TOKEN')
-app.config['TIMEZONEDB_API_KEY'] = os.getenv('TIMEZONEDB_API_KEY')
+app.config["MAIL_SERVER"] = os.getenv("MAIL_SERVER")
+app.config["MAIL_PORT"] = os.getenv("MAIL_PORT")
+app.config["MAIL_USE_SSL"] = True
+app.config["MAIL_USERNAME"] = os.getenv("MAIL_USERNAME")
+app.config["MAIL_PASSWORD"] = os.getenv("MAIL_PASSWORD")
+app.config["MAIL_SENDER"] = os.getenv("MAIL_SENDER")
+app.config["MAIL_RECIPIENTS"] = os.getenv("MAIL_RECIPIENTS")
+app.config["REDIS_URL"] = os.getenv("REDIS_URL")
+app.config["MAPBOX_API_TOKEN"] = os.getenv("MAPBOX_API_TOKEN")
+app.config["GOOGLE_API_TOKEN"] = os.getenv("GOOGLE_API_TOKEN")
+app.config["TIMEZONEDB_API_KEY"] = os.getenv("TIMEZONEDB_API_KEY")
 
 app.register_blueprint(tracking.bp)
 app.register_blueprint(mailer.bp)
@@ -32,11 +32,12 @@ app.register_blueprint(astronauts.bp)
 app.register_blueprint(youtube.bp)
 app.register_blueprint(tokens.bp)
 
-@app.route('/health')
+
+@app.route("/health")
 def health():
     return jsonify(
         health="healthy",
         sat_data_updated_at=sat_data_last_updated(),
         astronauts_updated_at=astronauts_last_updated(),
-        youtube_livestream_id_updated_at = youtube_livestream_id_updated_at()
+        youtube_livestream_id_updated_at=youtube_livestream_id_updated_at(),
     )
