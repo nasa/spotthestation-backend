@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Login into ECR and build the docker image
 aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
-docker buildx build --platform=linux/amd64 --tag $IMG_TAG --load --file ./Dockerfile .
+docker buildx build --platform=linux/arm64 --tag $IMG_TAG --load --file ./Dockerfile .
 docker push $IMG_TAG
 
 # Restart ECS services
