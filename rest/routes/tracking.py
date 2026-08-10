@@ -11,8 +11,8 @@ bp = Blueprint("tracking", __name__, url_prefix="/tracking")
 
 @bp.route("/iss-data-raw", methods=["POST"])
 def get_iss_data_raw():
-    current_app.logger.error("**********")
-    current_app.logger.error(request.json)
+    current_app.logger.info("**********")
+    current_app.logger.info(request.json)
 
     data = sat_data()
 
@@ -39,8 +39,8 @@ def get_iss_data_raw():
 
 @bp.route("/iss-data", methods=["POST"])
 def get_iss_data():
-    current_app.logger.error("**********")
-    current_app.logger.error(request.json)
+    current_app.logger.info("**********")
+    current_app.logger.info(request.json)
 
     data = sat_data()
 
