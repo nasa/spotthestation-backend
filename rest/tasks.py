@@ -9,6 +9,7 @@ import boto3
 import numpy
 import numpy as np
 import requests
+import sentry_sdk
 from botocore import UNSIGNED
 from botocore.config import Config
 from bs4 import BeautifulSoup
@@ -77,16 +78,28 @@ def get_sat_data():
     last_start_time = None
     raw_epoches = []
     for file in files:
-        result = ET.parse(file).getroot().find("oem").find("body").find("segment")
-        file_start_time = result.find("metadata").find("START_TIME").text
+        try:
+            result = ET.parse(file).getroot().find("oem").find("body").find("segment")
+            file_start_time = result.find("metadata").find("START_TIME").text
 
-        state_vectors = result.find("data").findall("stateVector")
-        if last_start_time is not None:
-            state_vectors = filter(
-                lambda sv: sv.find("EPOCH").text < last_start_time, state_vectors
-            )
+            state_vectors = result.find("data").findall("stateVector")
+            if last_start_time is not None:
+                state_vectors = filter(
+                    lambda sv: sv.find("EPOCH").text < last_start_time, state_vectors
+                )
 
-        raw_epoches = list(map(format_epoch, state_vectors)) + raw_epoches
+            file_epoches = list(map(format_epoch, state_vectors))
+        except Exception as e:
+            print(f"Failed to parse trajectory file {file}: {e}")
+            with sentry_sdk.new_scope() as scope:
+                scope.set_extra("file", file)
+                sentry_sdk.capture_exception(e)
+            # Without the current file the data would be stale; keep the previous value
+            if file == current_file:
+                return []
+            continue
+
+        raw_epoches = file_epoches + raw_epoches
         last_start_time = file_start_time
 
     eph = load("de421.bsp")
@@ -110,6 +123,14 @@ def get_sat_data():
                     "velocity": raw_epoches[i]["velocity"],
                 }
             )
+
+    if len(epoches) < 2:
+        message = (
+            f"Not enough trajectory data to build sat data ({len(epoches)} epochs)"
+        )
+        print(message)
+        sentry_sdk.capture_message(message, level="error")
+        return []
 
     spline_points = []
     for epoch in epoches:
